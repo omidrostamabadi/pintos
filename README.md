@@ -1,4 +1,4 @@
-###Group Homework
+### Group Homework
 
 - [x] Group HW Warm Up
 - [ ] Group HW 1
