@@ -73,12 +73,7 @@
 
 > در این قسمت تعریف هر یک از `struct` ها، اعضای `struct` ها، متغیرهای سراسری یا ایستا، `typedef` ها یا `enum` هایی که ای.جاد کرده‌اید یا تغییر داده‌اید را بنویسید و دلیل هر کدام را در حداکثر ۲۵ کلمه توضیح دهید.
 
-	typedef struct child {
-	pid_t pid; // process id of the child
-	struct child *children; // children of this process
-	struct semaphore *loading_sem; // exec will wait until child is loaded
-	bool load_status; // if false, should release all the resources
-	} child_t;
+
 	
 	struct thread {    /* Owned by thread.c. */
 		tid_t tid;                          /* Thread identifier. */
@@ -102,9 +97,13 @@
 	       /* Owned by thread.c. */
 	   unsigned magic;                     /* Detects stack overflow. */  
 	};	
-	typedef struct PCB {
-	struct file *p_files[128];
-	} 
+	/* each thread keeps a list of this struct in struct list open_files */
+	struct open_file {
+	int fd; // file descriptor of this file
+	struct file *this_file; // used for filesys functions
+	struct list_elem file_elem;
+	};
+
 
 > توضیح دهید که توصیف‌کننده‌های فایل چگونه به فایل‌های باز مربوط می‌شوند. آیا این توصیف‌کننده‌ها در کل سیستم‌عامل به‌طور یکتا مشخص می‌شوند یا فقط برای هر پردازه یکتا هستند؟
 
@@ -181,6 +180,11 @@
 در فایل sc-boundary.c این تست انجام میشود. ابتدا ناحیه مرز صفحه توسط تابع get_boundary_area() گرفته میشود و سپس یک واحد از آن کم میکند. پس در حالت فعلی یک آرگومان میتوان در آن قرار داد. اما تست مذکور دو ارگومان در آن قرار میدهد پس آرگومان دوم در ناحیه غیرمجاز قرار میگیرد.
 
 > یک قسمت از خواسته‌های تمرین را که توسط مجموعه تست موجود تست نشده‌است، نام ببرید. سپس مشخص کنید تستی که این خواسته را پوشش بدهد چگونه باید باشد.
+در تستهای موجود برای فراخوانی syscall read هیچ گاه اشاره گر NULL پاس داده نمیشود. برای اضافه کردن این تست (که بررسی کنیم آیا این فراخوانی سیستمی میتواند اشاره گرهای پوچ را به درستی مدیریت کند) باید یک تست ساده مانند زیر اضافه کنیم:
+
+	char *buff = NULL;
+	read(STDIN_FILENO, buff, buffer_size);
+	// Should terminate with exit code -1 
 
 سوالات نظرخواهی
 
