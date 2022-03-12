@@ -164,7 +164,7 @@ thread_print_stats (void)
    Priority scheduling is the goal of Problem 1-3. */
 tid_t
 thread_create (const char *name, int priority,
-               thread_func *function, void *aux)
+               thread_func *function, void *aux,struct *child its_child)
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
@@ -182,6 +182,9 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+
+  /* Set the thread's child struct */
+  t->its_child=its_child;
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -283,6 +286,17 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
+  struct thread *current_thread = thread_current ();
+  /* set NULL for parent of current thread's children */
+  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
+    {
+      struct child *child = list_entry (e, struct child, elem);
+      child->parent=NULL;
+    }
+  while (! list_empty (&current_thread->children))
+    {
+      list_pop_front (&current_thread->children);
+    }
   process_exit ();
 #endif
 

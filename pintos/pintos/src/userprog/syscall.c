@@ -33,3 +33,48 @@ syscall_handler (struct intr_frame *f UNUSED)
       thread_exit ();
     }
 }
+
+/* Handle exec Syscall */
+static void exec_handler(struct intr_frame *f){
+  char* command_line = f->esp+1;
+  //if (!is_valid_ptr(command_line))
+    //exit(-1);
+  //sema_down (&file_sema);  
+  tid_t tid = process_execute (command_line);
+  //sema_up (&file_sema);
+  
+  if (tid == TID_ERROR)
+    {
+      /* Process execution is failed */
+      f->eax = -1;
+      return;
+    }
+
+  struct thread *current_thread = thread_current ();
+  struct list_elem *e;
+  /* Trying to find Child elem with thread ID = tid */
+  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
+    {
+      struct child *child = list_entry (e, struct child, elem);
+      if (child->tid == tid)
+        {
+          sema_down (&child->wait_sem);
+          if (!child->loaded_status)
+            {
+              /* Child loading was failed */
+              f->eax = -1;
+            }
+          /* Child loaded successfully */  
+          f->eax=tid:  
+          return;
+        }
+    }
+  /* Child thread not found */    
+  f->eax = -1;
+}
+
+/* Handle wait Syscall */
+static void wait_handler(struct intr_frame *f){
+  tid_t child_tid = f->esp+1;
+  f->eax = process_wait (child_tid);
+}
