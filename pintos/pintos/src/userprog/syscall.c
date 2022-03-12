@@ -26,11 +26,119 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   /* printf("System call number: %d\n", args[0]); */
 
-  if (args[0] == SYS_EXIT)
+  switch (args[0])
     {
+    case SYS_EXIT:
       f->eax = args[1];
       printf ("%s: exit(%d)\n", &thread_current ()->name, args[1]);
       thread_exit ();
+      break;
+    
+    case SYS_PRACTICE:
+      //bool arg_valid = is_valid_ptr(args[1], 4);
+      f->eax = args[1] + 1; // Should validate args[1] address!
+      break;
+
+    case SYS_FILESIZE:
+      //bool arg_valid = is_valid_ptr(args[1], 4);
+      //if arg_valid fails, should take correct action here (kill and free)
+      struct file *file = get_file_from_fd(args[1]);
+      if(file != NULL)
+       {
+         sema_down(&file_sema); // Acquire global filesystem lock
+         f->eax = file_length(file);
+         sema_up(&file_sema); // Release global filesystem lock
+       }
+      else
+       {
+        //f->eax = file_not_found; or should kill the process?
+       }
+       break;
+
+    case SYS_CLOSE:
+      //bool arg_valid = is_valid_ptr(args[1], 4);
+      //if arg_valid fails, should take correct action here (kill and free)
+      struct file *file = get_file_from_fd(args[1]);
+      if(file != NULL)
+       {
+         sema_down(&file_sema); // Acquire global filesystem lock
+         file_close(file);
+         sema_up(&file_sema); // Release global filesystem lock
+
+         /* Remove file from open_files list of this thread */
+         struct thread *current = thread_current();
+         struct list_elem *e;
+         for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
+          e = list_next (e))
+          {
+            struct open_file *of = list_entry (e, struct open_file, file_elem);
+            if(of->fd == args[1])
+             {
+               list_remove(e);
+               free(of);
+               break; // Break for loop
+             }
+          }
+       }
+      else
+       {
+        //f->eax = file_not_found; or should kill the process?
+       }
+       break;
+    
+    case SYS_TELL:
+      //bool arg_valid = is_valid_ptr(args[1], 4);
+      //if arg_valid fails, should take correct action here (kill and free)
+      struct file *file = get_file_from_fd(args[1]);
+      if(file != NULL)
+       {
+         sema_down(&file_sema); // Acquire global filesystem lock
+         f->eax = file_tell(file);
+         sema_up(&file_sema); // Release global filesystem lock
+       }
+      else 
+       {
+         //f->eax = file_not_found; or should kill the process?
+       }
+       break;
+
+    case SYS_SEEK:
+      //bool arg_valid = is_valid_ptr(args[1], 8); // It has two args, so validate 8 bytes
+      //if arg_valid fails, should take correct action here (kill and free)
+      struct file *file = get_file_from_fd(args[1]);
+      if(file != NULL)
+       {
+         sema_down(&file_sema); // Acquire global filesystem lock
+         uint32_t f_size = file_length(file);
+         sema_up(&file_sema); // Release global filesystem lock
+         int file_pos = (int) args[2];
+         if(file_pos < 0) 
+          {
+            // kill thread (process) and free resources
+          }
+         if(args[2] < f_size) 
+          {
+            sema_down(&file_sema); // Acquire global filesystem lock
+            file_seek(file, args[2]);
+            sema_up(&file_sema); // Release global filesystem lock
+          }
+         else
+          {
+            // Kill the process, free resources and exit
+          }
+       }
+      else 
+       {
+         //f->eax = file_not_found; or should kill the process?
+       }
+       break;
+
+    case SYS_HALT:
+      shut_down_power_off(); // Defined in shutdown.c
+      break;
+    
+    default:
+      break;
     }
 }
 
