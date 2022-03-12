@@ -261,3 +261,28 @@ invalidate_pagedir (uint32_t *pd)
       pagedir_activate (pd);
     }
 }
+
+/* Validate a userspace region by performing three kind of validity checks:
+   1. If pointer is NULL, it is invalid
+   2. If pointer points at kernel vaddr, it is invalid
+   3. If pointer points at unmapped address, it is invalid
+   Currently, the first and last bytes of pointer with given size is checked 
+   Returns true if pointer is valid, or if size is 0, false otherwise. */
+static bool
+is_valid_ptr (uint8_t *uaddr, size_t size)
+{
+  if (uaddr == NULL || !is_user_vaddr(uaddr))
+    return false;
+  if (size == 0)
+    return true; // Can return false? Not sure.
+  struct thread *current = thread_current ();
+
+  /* Validate first byte (Check if it is mapped) */
+  if (pagedir_get_page (current->pagedir, uaddr) == NULL)
+    return false;
+
+  /* Validate last byte (Check if it is mapped) */
+  if (pagedir_get_page (current->pagedir, uaddr + size - 1) == NULL)
+    return false;
+  return true;
+}  
