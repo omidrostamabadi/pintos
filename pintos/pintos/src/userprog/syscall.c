@@ -3,13 +3,20 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/synch.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
+#include "filesys/inode.h"
+#include "filesys/directory.h"
+
 
 static void syscall_handler (struct intr_frame *);
-
+static struct semaphore* file_sema;
 void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  sema_init(file_sema, 1);
 }
 
 static void
@@ -136,7 +143,15 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_HALT:
       shut_down_power_off(); // Defined in shutdown.c
       break;
-    
+
+    case SYS_CREATE:
+
+    case SYS_REMOVE:
+
+    case SYS_READ:
+
+    case SYS_WRITE:
+
     default:
       break;
     }
@@ -186,3 +201,36 @@ static void wait_handler(struct intr_frame *f){
   tid_t child_tid = f->esp+1;
   f->eax = process_wait (child_tid);
 }
+
+
+static bool is_valid_pointer(){
+
+}
+
+
+static bool create_handler(){
+
+}
+
+static bool remove_handler(){
+
+}
+
+static int write_handler(){
+
+}
+
+static int read_handler(){
+
+}
+
+static void check_read_buffer(){
+
+}
+
+
+static void check_write_buffer(){
+
+}
+
+
