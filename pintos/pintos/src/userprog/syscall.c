@@ -54,6 +54,37 @@ syscall_handler (struct intr_frame *f UNUSED)
         //f->eax = file_not_found; or should kill the process?
        }
        break;
+
+    case SYS_CLOSE:
+      //bool arg_valid = is_valid_ptr(args[1], 4);
+      //if arg_valid fails, should take correct action here (kill and free)
+      struct file *file = get_file_from_fd(args[1]);
+      if(file != NULL)
+       {
+         sema_down(&file_sema); // Acquire global filesystem lock
+         file_close(file);
+         sema_up(&file_sema); // Release global filesystem lock
+
+         /* Remove file from open_files list of this thread */
+         struct thread *current = thread_current();
+         struct list_elem *e;
+         for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
+          e = list_next (e))
+          {
+            struct open_file *of = list_entry (e, struct open_file, file_elem);
+            if(of->fd == args[1])
+             {
+               list_remove(e);
+               free(of);
+               break; // Break for loop
+             }
+          }
+       }
+      else
+       {
+        //f->eax = file_not_found; or should kill the process?
+       }
+       break;
     
     default:
       break;
