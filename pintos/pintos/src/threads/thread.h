@@ -86,23 +86,37 @@ struct thread
   {
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
-    enum thread_status status;          /* Thread state. */
-    char name[16];                      /* Name (for debugging purposes). */
-    uint8_t *stack;                     /* Saved stack pointer. */
+    enum thread_status status;          /* Thread state. */    
+    char name[16];                      /* Name (for debugging purposes). */    uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-
-    /* Shared between thread.c and synch.c. */
-    struct list_elem elem;              /* List element. */
-
-#ifdef USERPROG
-    /* Owned by userprog/process.c. */
-    uint32_t *pagedir;                  /* Page directory. */
-#endif
-
-    /* Owned by thread.c. */
-    unsigned magic;                     /* Detects stack overflow. */
-  };
+        /* Shared between thread.c and synch.c. */
+   struct list_elem elem;              /* List element. */
+   #ifdef USERPROG
+   /* Owned by userprog/process.c. */
+   struct list open_files;              /* list of open files for this thread */
+   struct list children;                /* children of this thread */
+   struct *child its_child;             /* The child struct related to this thread */
+   struct thread *parent;               /* parent of this process */
+   bool load_status;                    /* if false, file failed to load */
+   uint32_t *pagedir;                   /* Page directory. */
+   #endif
+       /* Owned by thread.c. */
+   unsigned magic;                      /* Detects stack overflow. */  
+   };
+struct child
+   {
+   struct list_elem elem;               
+   tid_t tid;                           /* The thread's tid.*/
+   struct semaphore wait_sem;           /* used in wait syscall */   
+   bool loaded_status;                  /* if false, file failed to load */
+   int exit_code;                                                            
+   };
+struct open_file {
+   int fd;                              /* file descriptor of this file */
+   struct file *this_file;              /* used for filesys functions */
+   struct list_elem file_elem;
+};  
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
