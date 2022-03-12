@@ -72,3 +72,9 @@ static void exec_handler(struct intr_frame *f){
   /* Child thread not found */    
   f->eax = -1;
 }
+
+/* Handle wait Syscall */
+static void wait_handler(struct intr_frame *f){
+  tid_t child_tid = f->esp+1;
+  f->eax = process_wait (child_tid);
+}

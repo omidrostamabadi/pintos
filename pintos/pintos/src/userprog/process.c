@@ -109,8 +109,24 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  sema_down (&temporary);
-  return 0;
+  //sema_down (&temporary);
+  struct thread *current_thread = thread_current ();
+  struct list_elem *e;
+  /* Trying to find Child elem with thread ID = child_tid */
+  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
+    {
+      struct child *child = list_entry (e, struct child, elem);
+      if (child->tid == child_tid)
+        {
+          sema_down (&child->wait_sem);
+          int exit_code = child->exit_code;
+          list_remove (e);
+          free (child);
+          return exit_code;
+        }
+    }
+
+  return -1;
 }
 
 /* Free the current process's resources. */
