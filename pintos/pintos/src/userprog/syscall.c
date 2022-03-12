@@ -132,6 +132,10 @@ syscall_handler (struct intr_frame *f UNUSED)
          //f->eax = file_not_found; or should kill the process?
        }
        break;
+
+    case SYS_HALT:
+      shut_down_power_off(); // Defined in shutdown.c
+      break;
     
     default:
       break;
