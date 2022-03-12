@@ -26,10 +26,20 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   /* printf("System call number: %d\n", args[0]); */
 
-  if (args[0] == SYS_EXIT)
+  switch (args[0])
     {
+    case SYS_EXIT:
       f->eax = args[1];
       printf ("%s: exit(%d)\n", &thread_current ()->name, args[1]);
       thread_exit ();
+      break;
+    
+    case SYS_PRACTICE:
+      //bool arg_valid = is_valid_ptr(args[1], 4);
+      f->eax = args[1] + 1; // Should validate args[1] address!
+      break;
+    
+    default:
+      break;
     }
 }
