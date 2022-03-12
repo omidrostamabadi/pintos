@@ -86,6 +86,22 @@ syscall_handler (struct intr_frame *f UNUSED)
        }
        break;
     
+    case SYS_TELL:
+      //bool arg_valid = is_valid_ptr(args[1], 4);
+      //if arg_valid fails, should take correct action here (kill and free)
+      struct file *file = get_file_from_fd(args[1]);
+      if(file != NULL)
+       {
+         sema_down(&file_sema); // Acquire global filesystem lock
+         f->eax = file_tell(file);
+         sema_up(&file_sema); // Release global filesystem lock
+       }
+      else 
+       {
+         //f->eax = file_not_found; or should kill the process?
+       }
+       break;
+    
     default:
       break;
     }
