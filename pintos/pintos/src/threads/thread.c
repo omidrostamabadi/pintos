@@ -293,7 +293,7 @@ thread_exit (void)
     {
       struct open_file *open_file = list_entry (e, struct open_file, file_elem);
       sema_down (&file_sema);
-      file_close (open_file->file);
+      file_close (open_file->this_file);
       sema_up (&file_sema);
     }
 

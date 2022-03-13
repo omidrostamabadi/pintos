@@ -268,7 +268,7 @@ invalidate_pagedir (uint32_t *pd)
    3. If pointer points at unmapped address, it is invalid
    Currently, the first and last bytes of pointer with given size is checked 
    Returns true if pointer is valid, or if size is 0, false otherwise. */
-static bool
+bool
 is_valid_ptr (uint8_t *uaddr, size_t size)
 {
   if (uaddr == NULL || !is_user_vaddr(uaddr))
