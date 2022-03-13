@@ -9,14 +9,19 @@
 #include "filesys/inode.h"
 #include "filesys/directory.h"
 
-
 static void syscall_handler (struct intr_frame *);
-static struct semaphore* file_sema;
+static struct semaphore file_sema;
+struct file_descriptor{
+    int fd_num,
+    struct file* file,
+    tid_t thread_number,
+
+};
 void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  sema_init(file_sema, 1);
+  sema_init(&file_sema, 1);
 }
 
 static void
@@ -145,13 +150,17 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
 
     case SYS_CREATE:
-
+        f->eax = create_handler((const char*) args[1], (size_t) args[2]);
+        break;
     case SYS_REMOVE:
-
+        f->eax = remove_handler((const char*) args[1]);
+        break;
     case SYS_READ:
-
+        f->eax = write_handler((int) args[1], (const void*) args[2], (size_t) args[3]);
+        break;
     case SYS_WRITE:
-
+        f->eax = read_handler((int) args[1], (void*) args[2], (size_t) args[3]);
+        break;
     default:
       break;
     }
@@ -208,19 +217,33 @@ static bool is_valid_pointer(){
 }
 
 
-static bool create_handler(){
+static bool create_handler(const char* file_name, size_t size){
+    //
+    // validity_check if then exit
+    //
+    bool status = false;
+    sema_up(&file_sema);
+    status = filesys_create(file_name, size);
+    sema_down(&file_sema);
+    return status;
+}
+
+static bool remove_handler(const char* file_name){
+    //
+    // validity_check if then exit
+    //
+    bool status = false;
+    sema_up(&file_sema);
+    status = filesys_remove(file_name);
+    sema_down(&file_sema);
+    return status;
+}
+
+static int write_handler(int file_descriptor, const void* buffer, size_t buffer_size){
 
 }
 
-static bool remove_handler(){
-
-}
-
-static int write_handler(){
-
-}
-
-static int read_handler(){
+static int read_handler(int file_descriptor, void* buffer, size_t buffer_size){
 
 }
 
