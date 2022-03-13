@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "userprog/syscall.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -164,7 +165,7 @@ thread_print_stats (void)
    Priority scheduling is the goal of Problem 1-3. */
 tid_t
 thread_create (const char *name, int priority,
-               thread_func *function, void *aux,struct *child its_child)
+               thread_func *function, void *aux,struct child *its_child)
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
@@ -287,7 +288,7 @@ thread_exit (void)
 
 #ifdef USERPROG
   struct thread *current_thread = thread_current ();
-  
+  struct list_elem *e;
   /* Close open files */
   for (e = list_begin (&current_thread->open_files); e != list_end (&current_thread->open_files); e = list_next (e))
     {
@@ -309,7 +310,7 @@ thread_exit (void)
   for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
     {
       struct child *child = list_entry (e, struct child, elem);
-      child->parent=NULL;
+      child->has_parent = false;
     }
   while (! list_empty (&current_thread->children))
     {
@@ -496,6 +497,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
+  #ifdef USERPROG
+    list_init(&t->children);
+    list_init(&t->open_files);
+  #endif
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);

@@ -4,9 +4,22 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "userprog/pagedir.h"
+#include "devices/shutdown.h"
 
 static void syscall_handler (struct intr_frame *);
-static struct semaphore file_sema;
+
+void exec_handler(struct intr_frame *f);
+void wait_handler(struct intr_frame *f);
+void exit_handler(struct intr_frame *f);
+void practice_handler(struct intr_frame *f);
+void filesize_handler(struct intr_frame *f);
+void close_handler(struct intr_frame *f);
+void tell_handler(struct intr_frame *f);
+void seek_handler(struct intr_frame *f);
+void halt_handler(struct intr_frame *f);
+void exit_process (int exit_code);
+
+static struct file *get_file_from_fd (int fd);
 
 void
 syscall_init (void)
@@ -73,62 +86,13 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
 }
 
-/* Handle exec Syscall */
-static void exec_handler(struct intr_frame *f){
-    uint32_t* args = ((uint32_t*) f->esp);
-  char* command_line = args[1];
-  sema_down (&file_sema);
-  tid_t tid = process_execute (command_line);
-  sema_up (&file_sema);
-
-  if (tid == TID_ERROR)
-    {
-      /* Process execution is failed */
-      f->eax = -1;
-      return;
-    }
-
-  struct thread *current_thread = thread_current ();
-  struct list_elem *e;
-  /* Trying to find Child elem with thread ID = tid */
-  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
-    {
-      struct child *child = list_entry (e, struct child, elem);
-      if (child->tid == tid)
-        {
-          sema_down (&child->wait_sem);
-          if (!child->loaded_status)
-            {
-              /* Child loading was failed */
-              f->eax = -1;
-            }
-          /* Child loaded successfully */
-          f->eax=tid:
-          return;
-        }
-    }
-  /* Child thread not found */
-  f->eax = -1;
-}
-
-/* Handle wait Syscall */
-static void wait_handler(struct intr_frame *f){
-  uint32_t* args = ((uint32_t*) f->esp);
-  tid_t child_tid = args[1];
-    if(!is_valid_ptr(child_tid,sizeof (tid_t))){
-        exit_process(-1);
-        NOT_REACHED();
-    }
-  f->eax = process_wait (child_tid);
-}
-
-static void halt_handler (struct intr_frame *f)
+void halt_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
-  shut_down_power_off (); // Defined in shutdown.c
+  shutdown_power_off (); // Defined in shutdown.c
 }
 
-static void practice_handler (struct intr_frame *f)
+void practice_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   /* Make sure args[1] is valid */
@@ -141,7 +105,7 @@ static void practice_handler (struct intr_frame *f)
   f->eax = args[1] + 1;
 }
 
-static void filesize_handler (struct intr_frame *f)
+void filesize_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   /* Make sure args[1] is valid */
@@ -165,7 +129,7 @@ static void filesize_handler (struct intr_frame *f)
     }
 }
 
-static void close_handler (struct intr_frame *f)
+void close_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   /* Make sure args[1] is valid */
@@ -205,7 +169,7 @@ static void close_handler (struct intr_frame *f)
     }
 }
 
-static void tell_handler (struct intr_frame *f)
+void tell_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   /* Make sure args[1] is valid */
@@ -230,7 +194,7 @@ static void tell_handler (struct intr_frame *f)
     }
 }
 
-static void seek_handler (struct intr_frame *f)
+void seek_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   /* Make sure args[1] & args[2] are valid */
@@ -273,7 +237,7 @@ static void seek_handler (struct intr_frame *f)
 }
 
 /* Handle exec Syscall */
-static void exec_handler(struct intr_frame *f){
+void exec_handler(struct intr_frame *f){
     uint32_t* args = ((uint32_t*) f->esp);
     char* command_line = args[1];
 //    if(!is_valid_str (&args[1])){
@@ -306,7 +270,7 @@ static void exec_handler(struct intr_frame *f){
               f->eax = -1;
             }
           /* Child loaded successfully */
-          f->eax=tid:
+          f->eax=tid;
           return;
         }
     }
@@ -315,7 +279,7 @@ static void exec_handler(struct intr_frame *f){
 }
 
 /* Handle wait Syscall */
-static void wait_handler(struct intr_frame *f){
+void wait_handler(struct intr_frame *f){
     uint32_t* args = ((uint32_t*) f->esp);
     if(!is_valid_ptr (&args[1],sizeof (tid_t))){
         exit_process(-1);
@@ -327,20 +291,25 @@ static void wait_handler(struct intr_frame *f){
 }
 
 /* Handle exit Syscall */
-static void exit_handler(struct intr_frame *f){
-  int exit_code = f->esp+1;
+void exit_handler(struct intr_frame *f){
+  uint32_t* args = ((uint32_t*) f->esp);
+  if(!is_valid_ptr (&args[1],sizeof (int))){
+        exit_process(-1);
+        NOT_REACHED();
+  }
+  int exit_code = args[1];
   f->eax = exit_code;
   struct thread *current_thread = thread_current ();
-  current_thread->child->exit_code = exit_code;
+  current_thread->its_child->exit_code = exit_code;
   printf ("%s: exit(%d)\n", &thread_current ()->name, exit_code);
   thread_exit ();
 }
 
 /* Exit and kill current process */
-static void exit_process (int exit_code)
+void exit_process (int exit_code)
 {
   struct thread *current_thread = thread_current ();
-  current_thread->child->exit_code = exit_code;
+  current_thread->its_child->exit_code = exit_code;
   printf ("%s: exit(%d)\n", current_thread->name, exit_code);
   thread_exit ();
 }
