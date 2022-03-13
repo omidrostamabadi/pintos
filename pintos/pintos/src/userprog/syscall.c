@@ -17,6 +17,7 @@ static struct semaphore file_sema;
 //    tid_t thread_number,
 //
 //};
+
 void
 syscall_init (void)
 {
