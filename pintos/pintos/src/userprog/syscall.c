@@ -241,3 +241,27 @@ static void seek_handler (struct intr_frame *f)
       exit_process (-1);
     } 
 }
+
+/* Helper functions for syscall handlers */
+
+/* Iterate over current thread's list of open files
+   and return file * that matches fd
+   If no file exists with given fd, return NULL */
+static struct file *
+get_file_from_fd (int fd)
+{
+  struct thread *current = thread_current ();
+  struct list_elem *e;
+  for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
+  e = list_next (e))
+    {
+      struct open_file *of = list_entry (e, struct open_file, file_elem);
+      if (of->fd == fd)
+        {
+          return of->this_file;
+        }
+    }
+  
+  /* When reach here, fd cannot be found */
+  return NULL;
+}
