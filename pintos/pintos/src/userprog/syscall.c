@@ -29,9 +29,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   switch (args[0])
     {
     case SYS_EXIT:
-      f->eax = args[1];
-      printf ("%s: exit(%d)\n", &thread_current ()->name, args[1]);
-      thread_exit ();
+      exit_handler(f);
       break;
     
     case SYS_PRACTICE:
@@ -136,7 +134,15 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_HALT:
       shut_down_power_off(); // Defined in shutdown.c
       break;
-    
+
+    case SYS_EXEC:
+      exec_handler(f); 
+      break;
+
+    case SYS_WAIT:
+      wait_handler(f); 
+      break;
+
     default:
       break;
     }
@@ -146,10 +152,10 @@ syscall_handler (struct intr_frame *f UNUSED)
 static void exec_handler(struct intr_frame *f){
   char* command_line = f->esp+1;
   //if (!is_valid_ptr(command_line))
-    //exit(-1);
-  //sema_down (&file_sema);  
+    //exit_process(-1);
+  sema_down (&file_sema);  
   tid_t tid = process_execute (command_line);
-  //sema_up (&file_sema);
+  sema_up (&file_sema);
   
   if (tid == TID_ERROR)
     {
@@ -185,4 +191,23 @@ static void exec_handler(struct intr_frame *f){
 static void wait_handler(struct intr_frame *f){
   tid_t child_tid = f->esp+1;
   f->eax = process_wait (child_tid);
+}
+
+/* Handle exit Syscall */
+static void exit_handler(struct intr_frame *f){
+  int exit_code = f->esp+1;
+  f->eax = exit_code;
+  struct thread *current_thread = thread_current ();
+  current_thread->child->exit_code = exit_code;
+  printf ("%s: exit(%d)\n", &thread_current ()->name, exit_code);
+  thread_exit ();
+}
+
+/* Exit and kill current process */
+static void exit_process (int exit_code)
+{
+  struct thread *current_thread = thread_current ();
+  current_thread->child->exit_code = exit_code;
+  printf ("%s: exit(%d)\n", current_thread->name, exit_code);
+  thread_exit ();
 }

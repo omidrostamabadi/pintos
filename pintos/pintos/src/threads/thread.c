@@ -287,6 +287,24 @@ thread_exit (void)
 
 #ifdef USERPROG
   struct thread *current_thread = thread_current ();
+  
+  /* Close open files */
+  for (e = list_begin (&current_thread->open_files); e != list_end (&current_thread->open_files); e = list_next (e))
+    {
+      struct open_file *open_file = list_entry (e, struct open_file, file_elem);
+      sema_down (&file_sema);
+      file_close (open_file->file);
+      sema_up (&file_sema);
+    }
+
+  /* Free open files */
+  while (! list_empty (&current_thread->open_files))
+    {
+      e = list_pop_front (&current_thread->open_files);
+      struct open_file *open_file = list_entry (e, struct open_file, file_elem);
+      free (open_file);
+    }
+
   /* set NULL for parent of current thread's children */
   for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
     {
