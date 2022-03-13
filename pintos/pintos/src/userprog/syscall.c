@@ -11,12 +11,12 @@
 
 static void syscall_handler (struct intr_frame *);
 static struct semaphore file_sema;
-struct file_descriptor{
-    int fd_num,
-    struct file* file,
-    tid_t thread_number,
-
-};
+//struct file_descriptor{
+//    int fd_num,
+//    struct file* file,
+//    tid_t thread_number,
+//
+//};
 void
 syscall_init (void)
 {
@@ -211,40 +211,41 @@ static void wait_handler(struct intr_frame *f){
   f->eax = process_wait (child_tid);
 }
 
-
-static bool is_valid_pointer(){
-
-}
-
-
 static bool create_handler(const char* file_name, size_t size){
-    //
-    // validity_check if then exit
-    //
+//    if (!is_valid_ptr(, 4)){
+//        exit_process(-1);
+//    }
     bool status = false;
-    sema_up(&file_sema);
-    status = filesys_create(file_name, size);
     sema_down(&file_sema);
+    status = filesys_create(file_name, size);
+    sema_up(&file_sema);
     return status;
 }
 
 static bool remove_handler(const char* file_name){
-    //
-    // validity_check if then exit
-    //
+//    if (!is_valid_ptr(, 4)){
+//        exit_process(-1);
+//    }
     bool status = false;
-    sema_up(&file_sema);
-    status = filesys_remove(file_name);
     sema_down(&file_sema);
+    status = filesys_remove(file_name);
+    sema_up(&file_sema);
     return status;
 }
 
 static int write_handler(int file_descriptor, const void* buffer, size_t buffer_size){
+    return -1;
+}
+
+static void check_write_buffer(){
 
 }
 
+
+
 static int read_handler(int file_descriptor, void* buffer, size_t buffer_size){
 
+    return -1;
 }
 
 static void check_read_buffer(){
@@ -252,8 +253,6 @@ static void check_read_buffer(){
 }
 
 
-static void check_write_buffer(){
 
-}
 
 
