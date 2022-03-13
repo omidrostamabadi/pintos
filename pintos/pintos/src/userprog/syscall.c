@@ -35,106 +35,27 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
     
     case SYS_PRACTICE:
-      //bool arg_valid = is_valid_ptr(args[1], 4);
-      f->eax = args[1] + 1; // Should validate args[1] address!
+      practice_handler (f);
       break;
 
     case SYS_FILESIZE:
-      //bool arg_valid = is_valid_ptr(args[1], 4);
-      //if arg_valid fails, should take correct action here (kill and free)
-      struct file *file = get_file_from_fd(args[1]);
-      if(file != NULL)
-       {
-         sema_down(&file_sema); // Acquire global filesystem lock
-         f->eax = file_length(file);
-         sema_up(&file_sema); // Release global filesystem lock
-       }
-      else
-       {
-        //f->eax = file_not_found; or should kill the process?
-       }
+       filesize_handler (f);
        break;
 
     case SYS_CLOSE:
-      //bool arg_valid = is_valid_ptr(args[1], 4);
-      //if arg_valid fails, should take correct action here (kill and free)
-      struct file *file = get_file_from_fd(args[1]);
-      if(file != NULL)
-       {
-         sema_down(&file_sema); // Acquire global filesystem lock
-         file_close(file);
-         sema_up(&file_sema); // Release global filesystem lock
-
-         /* Remove file from open_files list of this thread */
-         struct thread *current = thread_current();
-         struct list_elem *e;
-         for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
-          e = list_next (e))
-          {
-            struct open_file *of = list_entry (e, struct open_file, file_elem);
-            if(of->fd == args[1])
-             {
-               list_remove(e);
-               free(of);
-               break; // Break for loop
-             }
-          }
-       }
-      else
-       {
-        //f->eax = file_not_found; or should kill the process?
-       }
+       close_handler (f);
        break;
     
     case SYS_TELL:
-      //bool arg_valid = is_valid_ptr(args[1], 4);
-      //if arg_valid fails, should take correct action here (kill and free)
-      struct file *file = get_file_from_fd(args[1]);
-      if(file != NULL)
-       {
-         sema_down(&file_sema); // Acquire global filesystem lock
-         f->eax = file_tell(file);
-         sema_up(&file_sema); // Release global filesystem lock
-       }
-      else 
-       {
-         //f->eax = file_not_found; or should kill the process?
-       }
+       tell_handler (f);
        break;
 
     case SYS_SEEK:
-      //bool arg_valid = is_valid_ptr(args[1], 8); // It has two args, so validate 8 bytes
-      //if arg_valid fails, should take correct action here (kill and free)
-      struct file *file = get_file_from_fd(args[1]);
-      if(file != NULL)
-       {
-         sema_down(&file_sema); // Acquire global filesystem lock
-         uint32_t f_size = file_length(file);
-         sema_up(&file_sema); // Release global filesystem lock
-         int file_pos = (int) args[2];
-         if(file_pos < 0) 
-          {
-            // kill thread (process) and free resources
-          }
-         if(args[2] < f_size) 
-          {
-            sema_down(&file_sema); // Acquire global filesystem lock
-            file_seek(file, args[2]);
-            sema_up(&file_sema); // Release global filesystem lock
-          }
-         else
-          {
-            // Kill the process, free resources and exit
-          }
-       }
-      else 
-       {
-         //f->eax = file_not_found; or should kill the process?
-       }
+       seek_handler (f);
        break;
 
     case SYS_HALT:
-      shut_down_power_off(); // Defined in shutdown.c
+      halt_handler (f);
       break;
     
     default:
@@ -185,4 +106,138 @@ static void exec_handler(struct intr_frame *f){
 static void wait_handler(struct intr_frame *f){
   tid_t child_tid = f->esp+1;
   f->eax = process_wait (child_tid);
+}
+
+static void halt_handler (struct intr_frame *f)
+{
+  uint32_t* args = ((uint32_t*) f->esp);
+  shut_down_power_off (); // Defined in shutdown.c
+}
+
+static void practice_handler (struct intr_frame *f)
+{
+  uint32_t* args = ((uint32_t*) f->esp);
+  /* Make sure args[1] is valid */
+  bool arg_valid = is_valid_ptr (args[1], 4);
+  /* Exit and free resources if not valid */
+  if (!arg_valid)
+    exit_process (-1);
+  f->eax = args[1] + 1; 
+}
+
+static void filesize_handler (struct intr_frame *f)
+{
+  uint32_t* args = ((uint32_t*) f->esp);
+  /* Make sure args[1] is valid */
+  bool arg_valid = is_valid_ptr (args[1], 4);
+  /* Exit and free resources if not valid */
+  if (!arg_valid)
+    exit_process (-1);
+  struct file *file = get_file_from_fd (args[1]);
+  if (file != NULL)
+    {
+      sema_down (&file_sema); // Acquire global filesystem lock
+      f->eax = file_length (file);
+      sema_up (&file_sema); // Release global filesystem lock
+    }
+  else
+    {
+      exit_process (-1);
+    }
+}
+
+static void close_handler (struct intr_frame *f)
+{
+  uint32_t* args = ((uint32_t*) f->esp);
+  /* Make sure args[1] is valid */
+  bool arg_valid = is_valid_ptr (args[1], 4);
+  /* Exit and free resources if not valid */
+  if (!arg_valid)
+    exit_process (-1);
+  
+  struct file *file = get_file_from_fd (args[1]);
+  if (file != NULL)
+    {
+      sema_down (&file_sema); // Acquire global filesystem lock
+      file_close (file);
+      sema_up (&file_sema); // Release global filesystem lock
+
+      /* Remove file from open_files list of this thread */
+      struct thread *current = thread_current ();
+      struct list_elem *e;
+      for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
+      e = list_next (e))
+        {
+          struct open_file *of = list_entry (e, struct open_file, file_elem);
+          if (of->fd == args[1])
+            {
+              list_remove (e);
+              free (of);
+              break; // Break for loop
+            }
+        }
+    }
+  else
+    {
+      exit_process (-1);
+    }
+}
+
+static void tell_handler (struct intr_frame *f)
+{
+  uint32_t* args = ((uint32_t*) f->esp);
+  /* Make sure args[1] is valid */
+  bool arg_valid = is_valid_ptr (args[1], 4);
+  /* Exit and free resources if not valid */
+  if (!arg_valid)
+    exit_process (-1);
+  
+  struct file *file = get_file_from_fd (args[1]);
+  if (file != NULL)
+    {
+      sema_down (&file_sema); // Acquire global filesystem lock
+      f->eax = file_tell (file);
+      sema_up (&file_sema); // Release global filesystem lock
+    }
+  else 
+    {
+      exit_process (-1);
+    }
+}
+
+static void seek_handler (struct intr_frame *f)
+{
+  uint32_t* args = ((uint32_t*) f->esp);
+  /* Make sure args[1] & args[2] are valid */
+  bool arg_valid = is_valid_ptr (args[1], 8);
+  /* Exit and free resources if not valid */
+  if (!arg_valid)
+    exit_process (-1);
+  
+  struct file *file = get_file_from_fd (args[1]);
+  if (file != NULL)
+    {
+      sema_down (&file_sema); // Acquire global filesystem lock
+      uint32_t f_size = file_length (file);
+      sema_up (&file_sema); // Release global filesystem lock
+      int file_pos = (int) args[2];
+      if (file_pos < 0) 
+      {
+        exit_process (-1);
+      }
+      if (args[2] < f_size) 
+      {
+        sema_down (&file_sema); // Acquire global filesystem lock
+        file_seek (file, args[2]);
+        sema_up (&file_sema); // Release global filesystem lock
+      }
+      else
+      {
+        exit_process (-1);
+      }
+    }
+  else 
+    {
+      exit_process (-1);
+    } 
 }
