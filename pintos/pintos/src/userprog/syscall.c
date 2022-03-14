@@ -5,6 +5,8 @@
 #include "threads/thread.h"
 #include "userprog/pagedir.h"
 #include "devices/shutdown.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -21,6 +23,8 @@ void create_handler(struct intr_frame *f);
 void write_handler(struct intr_frame *f);
 void read_handler(struct intr_frame *f);
 void remove_handler(struct intr_frame *f);
+void open_handler(struct intr_frame *f);
+int get_free_fd ();
 static struct file *get_file_from_fd (int fd);
 
 void
@@ -93,6 +97,10 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_READ:
        read_handler(f);
         break;
+
+    case SYS_OPEN:
+        open_handler(f);
+        break; 
     default:
       break;
     }
@@ -451,7 +459,7 @@ void read_handler(struct intr_frame *f){
             break;
         case STDOUT_FILENO:
             read_size = -1;
-            // exit_process(-1);
+          //  exit_process(-1);
             break;
         default:
             fds = get_file_from_fd(file_des);
@@ -463,4 +471,46 @@ void read_handler(struct intr_frame *f){
     }
     sema_up(&file_sema);
     f->eax = read_size;
+}
+
+void open_handler(struct intr_frame *f)
+{
+  uint32_t* args = ((uint32_t*) f->esp);
+  if (!is_valid_str(args[1]))
+    {
+      exit_process(-1);
+      NOT_REACHED();
+    }
+  struct file *curr_file;
+  sema_down (&file_sema);
+  curr_file = filesys_open (args[1]);
+  sema_up (&file_sema);
+  if (curr_file == NULL)
+    {
+      f->eax = -1;
+      // exit_process (-1);
+    }
+  else
+    {
+      struct thread *current = thread_current ();
+      struct open_file *of = (struct open_file *) malloc (sizeof (struct open_file));
+      of->this_file = curr_file;
+      of->fd = get_free_fd ();
+      list_push_back (&current->open_files, &of->file_elem);
+      f->eax = of->fd;
+    }
+  
+}
+
+/* Returns a valid file descriptor not already allocated for this thread */
+int get_free_fd () 
+{
+  struct thread *current = thread_current ();
+  if (list_empty (&current->open_files))
+    return 3; // 0, 1, and 2 are already allocated to STDIN, STDOUT, and STDERR
+  
+  struct list_elem *e;
+  e = list_end (&current->open_files);
+  struct open_file *of = list_entry (e, struct open_file, file_elem);
+  return (of->fd + 1);
 }
