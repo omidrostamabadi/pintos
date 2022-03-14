@@ -18,6 +18,7 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/syscall.h"
 
 static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
@@ -105,7 +106,7 @@ start_process (void *file_name_)
   if (!success){
     struct thread *current_thread = thread_current ();
     sema_up (&current_thread->its_child->wait_sem);
-    thread_exit ();
+    exit_process(-1);
   }
   struct thread *current_thread = thread_current ();
   current_thread->its_child->loaded_status=true;

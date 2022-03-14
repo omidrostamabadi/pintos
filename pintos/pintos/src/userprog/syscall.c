@@ -17,7 +17,6 @@ void close_handler(struct intr_frame *f);
 void tell_handler(struct intr_frame *f);
 void seek_handler(struct intr_frame *f);
 void halt_handler(struct intr_frame *f);
-void exit_process (int exit_code);
 void create_handler(struct intr_frame *f);
 void write_handler(struct intr_frame *f);
 void read_handler(struct intr_frame *f);
@@ -251,12 +250,13 @@ void seek_handler (struct intr_frame *f)
 
 /* Handle exec Syscall */
 void exec_handler(struct intr_frame *f){
-    uint32_t* args = ((uint32_t*) f->esp);
-    char* command_line = args[1];
-//    if(!is_valid_str (&args[1])){
-//        exit_process(-1);
-//        NOT_REACHED();
-//    }
+  uint32_t* args = ((uint32_t*) f->esp);
+
+  if(!is_valid_str (args[1])){
+    exit_process(-1);
+    NOT_REACHED();
+  }
+  char* command_line = args[1];
   sema_down (&file_sema);
   tid_t tid = process_execute (command_line);
   sema_up (&file_sema);
