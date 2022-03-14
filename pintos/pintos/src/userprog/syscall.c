@@ -353,14 +353,16 @@ get_file_from_fd (int fd)
 
 void create_handler(struct intr_frame *f){
     uint32_t* args = ((uint32_t*) f->esp);
+    if (!is_valid_str(args[1])){
+        exit_process(-1);
+        NOT_REACHED();
+    }
+    if (!is_valid_ptr(&args[2], 4)){
+        exit_process(-1);
+        NOT_REACHED();
+    }
     const char* file_name = (const char*) args[1];
     size_t size = (size_t) args[2];
-
-//    if (!is_valid_ptr(, 4)){
-//        exit_process(-1);
-//        NOT_REACHED();
-//    }
-
     bool status = false;
     sema_down(&file_sema);
     status = filesys_create(file_name, size);
@@ -370,10 +372,11 @@ void create_handler(struct intr_frame *f){
 
 void remove_handler(struct intr_frame *f){
     uint32_t* args = ((uint32_t*) f->esp);
+    if (!is_valid_str(args[1])){
+        exit_process(-1);
+        NOT_REACHED();
+    }
     const char* file_name = (const char*) args[1];
-//    if (!is_valid_ptr(, 4)){
-//        exit_process(-1);
-//    }
     bool status = false;
     sema_down(&file_sema);
     status = filesys_remove(file_name);
@@ -383,6 +386,10 @@ void remove_handler(struct intr_frame *f){
 
 void write_handler(struct intr_frame *f){
     uint32_t* args = ((uint32_t*) f->esp);
+    if (!is_valid_ptr(&args[1], 12)){
+        exit_process(-1);
+        NOT_REACHED();
+    }
     int file_des = (int) args[1];
     const void* buffer = (const void*) args[2];
     size_t buffer_size = (size_t) args[3];
@@ -390,11 +397,6 @@ void write_handler(struct intr_frame *f){
     int write_size;
     void* buffer_copy = buffer;
     size_t copy_buffer_size = buffer_size;
-    //
-//    if (!is_valid_ptr((uint8_t*) buffer_copy, (unsigned) copy_buffer_size)){
-//        exit_process(-1);
-//    }
-    //
     sema_down(&file_sema);
     switch (file_des){
         case STDIN_FILENO:
@@ -421,6 +423,10 @@ void write_handler(struct intr_frame *f){
 
 void read_handler(struct intr_frame *f){
     uint32_t* args = ((uint32_t*) f->esp);
+    if (!is_valid_ptr(&args[1], 12)){
+        exit_process(-1);
+        NOT_REACHED();
+    }
     int file_des = (int) args[1];
     void* buffer = (void*) args[2];
     size_t buffer_size = (size_t) args[3];
@@ -428,9 +434,6 @@ void read_handler(struct intr_frame *f){
     int read_size;
     void* buffer_copy = buffer;
     size_t copy_buffer_size = buffer_size;
-    if (!is_valid_ptr((uint8_t*) buffer_copy, (unsigned) copy_buffer_size)){
-        exit_process(-1);
-    }
     sema_down(&file_sema);
     uint8_t c;
     unsigned counter = buffer_size;
