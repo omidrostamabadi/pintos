@@ -89,7 +89,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         remove_handler(f);
         break;
     case SYS_WRITE:
-       write_handler(f);
+        write_handler(f);
        break;
     case SYS_READ:
        read_handler(f);
