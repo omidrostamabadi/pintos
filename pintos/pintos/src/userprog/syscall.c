@@ -18,7 +18,10 @@ void tell_handler(struct intr_frame *f);
 void seek_handler(struct intr_frame *f);
 void halt_handler(struct intr_frame *f);
 void exit_process (int exit_code);
-
+void create_handler(struct intr_frame *f);
+void write_handler(struct intr_frame *f);
+void read_handler(struct intr_frame *f);
+void remove_handler(struct intr_frame *f);
 static struct file *get_file_from_fd (int fd);
 
 void
@@ -76,11 +79,21 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_WAIT:
         wait_handler (f);
         break;
-
-        case SYS_HALT:
+    case SYS_HALT:
       halt_handler (f);
       break;
-
+    case SYS_CREATE:
+        create_handler(f);
+        break;
+    case SYS_REMOVE:
+        remove_handler(f);
+        break;
+    case SYS_WRITE:
+       create_handler(f);
+       break;
+    case SYS_READ:
+       remove_handler(f);
+        break;
     default:
       break;
     }
@@ -338,18 +351,26 @@ get_file_from_fd (int fd)
     return NULL;
 }
 
-static bool create_handler(const char* file_name, size_t size){
+void create_handler(struct intr_frame *f){
+    uint32_t* args = ((uint32_t*) f->esp);
+    const char* file_name = (const char*) args[1];
+    size_t size = (size_t) args[2];
+
 //    if (!is_valid_ptr(, 4)){
 //        exit_process(-1);
+//        NOT_REACHED();
 //    }
+
     bool status = false;
     sema_down(&file_sema);
     status = filesys_create(file_name, size);
     sema_up(&file_sema);
-    return status;
+    f->eax = status;
 }
 
-static bool remove_handler(const char* file_name){
+void remove_handler(struct intr_frame *f){
+    uint32_t* args = ((uint32_t*) f->esp);
+    const char* file_name = (const char*) args[1];
 //    if (!is_valid_ptr(, 4)){
 //        exit_process(-1);
 //    }
@@ -357,6 +378,84 @@ static bool remove_handler(const char* file_name){
     sema_down(&file_sema);
     status = filesys_remove(file_name);
     sema_up(&file_sema);
-    return status;
+    f->eax = status;
 }
 
+void write_handler(struct intr_frame *f){
+    uint32_t* args = ((uint32_t*) f->esp);
+    int file_des = (int) args[1];
+    const void* buffer = (const void*) args[2];
+    size_t buffer_size = (size_t) args[3];
+    struct file fds;
+    int write_size;
+    void* buffer_copy = buffer;
+    size_t copy_buffer_size = buffer_size;
+    //
+//    if (!is_valid_ptr((uint8_t*) buffer_copy, (unsigned) copy_buffer_size)){
+//        exit_process(-1);
+//    }
+    //
+    sema_down(&file_sema);
+    switch (file_des){
+        case STDIN_FILENO:
+            write_size = -1;
+             exit_process(-1);
+            break;
+        case STDOUT_FILENO:
+            putbuf(buffer, buffer_size);
+            write_size = buffer_size;
+            break;
+        default:
+            fds = get_file_from_fd(file_des);
+            if (fds != NULL){
+                read_size = file_write(fds, buffer, buffer_size);
+            }
+
+            break;
+    }
+    sema_up(&file_sema);
+    f->eax = write_size;
+}
+
+
+
+void read_handler(struct intr_frame *f){
+    uint32_t* args = ((uint32_t*) f->esp);
+    int file_des, void* buffer, size_t buffer_size
+    struct file fds;
+    int read_size;
+    void* buffer_copy = buffer;
+    size_t copy_buffer_size = buffer_size;
+    if (!is_valid_ptr((uint8_t*) buffer_copy, (unsigned) copy_buffer_size)){
+        exit_process(-1);
+    }
+    sema_down(&file_sema);
+    switch (file_des){
+        case STDIN_FILENO:
+            uint8_t c;
+            unsigned counter = buffer_size;
+            uint8_t *buf = buffer;
+            while (counter > 1 && (c = input_getc()) != 0)
+            {
+                *buf = c;
+                buffer = buffer + 1;
+                counter = counter - 1;
+            }
+            *buf = 0;
+            read_size = size - counter;
+            break;
+        case STDOUT_FILENO:
+            read_size = -1;
+            // exit_process(-1);
+            break;
+        default:
+            fds = get_file_from_fd(file_des);
+            if (fds != NULL){
+                read_size = file_read(fds, buffer, buffer_size);
+            }
+            break;
+
+    }
+    sema_up(&file_sema);
+    f->eax = read_size;
+}
