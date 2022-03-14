@@ -76,6 +76,7 @@ process_execute (const char *file_name)
   child->tid = tid;
   sema_init (&child->wait_sem, 0);
   child->loaded_status = false;
+  child->has_parent = true;
   child->exit_code = -1;
   struct thread *current_thread = thread_current ();
   list_push_back (&current_thread->children, &child->elem);
@@ -107,7 +108,7 @@ start_process (void *file_name_)
     thread_exit ();
   }
   struct thread *current_thread = thread_current ();
-  &current_thread->its_child->loaded_status=true;
+  current_thread->its_child->loaded_status=true;
   sema_up (&current_thread->its_child->wait_sem);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -177,7 +178,7 @@ process_exit (void)
       pagedir_destroy (pd);
     }
     sema_up (&its_child->wait_sem);
-    if(cur->parent==NULL)
+    if(cur->its_child->has_parent == false)
       free(cur->its_child);
   //sema_up (&temporary);
 }

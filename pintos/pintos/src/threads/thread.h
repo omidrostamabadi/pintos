@@ -96,7 +96,7 @@ struct thread
    /* Owned by userprog/process.c. */
    struct list open_files;              /* list of open files for this thread */
    struct list children;                /* children of this thread */
-   struct *child its_child;             /* The child struct related to this thread */
+   struct child *its_child;             /* The child struct related to this thread */
    struct thread *parent;               /* parent of this process */
    bool load_status;                    /* if false, file failed to load */
    uint32_t *pagedir;                   /* Page directory. */
@@ -110,6 +110,7 @@ struct child
    tid_t tid;                           /* The thread's tid.*/
    struct semaphore wait_sem;           /* used in wait syscall */   
    bool loaded_status;                  /* if false, file failed to load */
+   bool has_parent;                     /* if false, child's parent exited */
    int exit_code;                                                            
    };
 struct open_file {
@@ -130,7 +131,7 @@ void thread_tick (void);
 void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
-tid_t thread_create (const char *name, int priority, thread_func *, void *);
+tid_t thread_create (const char *name, int priority, thread_func *, void *, struct child *);
 
 void thread_block (void);
 void thread_unblock (struct thread *);
