@@ -337,3 +337,26 @@ get_file_from_fd (int fd)
     /* When reach here, fd cannot be found */
     return NULL;
 }
+
+static bool create_handler(const char* file_name, size_t size){
+//    if (!is_valid_ptr(, 4)){
+//        exit_process(-1);
+//    }
+    bool status = false;
+    sema_down(&file_sema);
+    status = filesys_create(file_name, size);
+    sema_up(&file_sema);
+    return status;
+}
+
+static bool remove_handler(const char* file_name){
+//    if (!is_valid_ptr(, 4)){
+//        exit_process(-1);
+//    }
+    bool status = false;
+    sema_down(&file_sema);
+    status = filesys_remove(file_name);
+    sema_up(&file_sema);
+    return status;
+}
+
