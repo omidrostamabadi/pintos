@@ -287,3 +287,34 @@ is_valid_ptr (uint8_t *uaddr, size_t size)
     return false;
   return true;
 }  
+
+/* Validate a userspace region containing a string by performing three kind of validity checks:
+   1. If pointer is NULL, it is invalid
+   2. If pointer points at kernel vaddr, it is invalid
+   3. If pointer points at unmapped address, it is invalid
+   Cannot use is_valid_ptr since the size of string is unknown 
+   Returns true if pointer is valid, false otherwise. */
+bool is_valid_str (char *uaddr)
+{
+  if (uaddr == NULL || !is_user_vaddr(uaddr))
+    return false;
+  struct thread *current = thread_current ();
+  bool is_valid = true;
+  do 
+    { 
+      /* First validate the address, then dereference */
+      if (pagedir_get_page (current->pagedir, uaddr) == NULL)
+        {
+          is_valid = false;
+          break;
+        }
+      char curr_char = *uaddr;
+
+      /* Check if end of string is reached */
+      if(curr_char == '\0') 
+        {
+          break;
+        }
+      uaddr++;
+    } while (true);
+}
