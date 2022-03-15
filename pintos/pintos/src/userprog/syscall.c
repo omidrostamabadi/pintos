@@ -5,6 +5,8 @@
 #include "threads/thread.h"
 #include "userprog/pagedir.h"
 #include "devices/shutdown.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -17,11 +19,12 @@ void close_handler(struct intr_frame *f);
 void tell_handler(struct intr_frame *f);
 void seek_handler(struct intr_frame *f);
 void halt_handler(struct intr_frame *f);
-void exit_process (int exit_code);
 void create_handler(struct intr_frame *f);
 void write_handler(struct intr_frame *f);
 void read_handler(struct intr_frame *f);
 void remove_handler(struct intr_frame *f);
+void open_handler(struct intr_frame *f);
+int get_free_fd ();
 static struct file *get_file_from_fd (int fd);
 
 void
@@ -89,11 +92,15 @@ syscall_handler (struct intr_frame *f UNUSED)
         remove_handler(f);
         break;
     case SYS_WRITE:
-       create_handler(f);
+        write_handler(f);
        break;
     case SYS_READ:
-       remove_handler(f);
+       read_handler(f);
         break;
+
+    case SYS_OPEN:
+        open_handler(f);
+        break; 
     default:
       break;
     }
@@ -251,12 +258,13 @@ void seek_handler (struct intr_frame *f)
 
 /* Handle exec Syscall */
 void exec_handler(struct intr_frame *f){
-    uint32_t* args = ((uint32_t*) f->esp);
-    char* command_line = args[1];
-//    if(!is_valid_str (&args[1])){
-//        exit_process(-1);
-//        NOT_REACHED();
-//    }
+  uint32_t* args = ((uint32_t*) f->esp);
+
+  if(!is_valid_str (args[1])){
+    exit_process(-1);
+    NOT_REACHED();
+  }
+  char* command_line = args[1];
   sema_down (&file_sema);
   tid_t tid = process_execute (command_line);
   sema_up (&file_sema);
@@ -353,14 +361,16 @@ get_file_from_fd (int fd)
 
 void create_handler(struct intr_frame *f){
     uint32_t* args = ((uint32_t*) f->esp);
+    if (!is_valid_str(args[1])){
+        exit_process(-1);
+        NOT_REACHED();
+    }
+    if (!is_valid_ptr(&args[2], 4)){
+        exit_process(-1);
+        NOT_REACHED();
+    }
     const char* file_name = (const char*) args[1];
     size_t size = (size_t) args[2];
-
-//    if (!is_valid_ptr(, 4)){
-//        exit_process(-1);
-//        NOT_REACHED();
-//    }
-
     bool status = false;
     sema_down(&file_sema);
     status = filesys_create(file_name, size);
@@ -370,10 +380,11 @@ void create_handler(struct intr_frame *f){
 
 void remove_handler(struct intr_frame *f){
     uint32_t* args = ((uint32_t*) f->esp);
+    if (!is_valid_str(args[1])){
+        exit_process(-1);
+        NOT_REACHED();
+    }
     const char* file_name = (const char*) args[1];
-//    if (!is_valid_ptr(, 4)){
-//        exit_process(-1);
-//    }
     bool status = false;
     sema_down(&file_sema);
     status = filesys_remove(file_name);
@@ -383,18 +394,17 @@ void remove_handler(struct intr_frame *f){
 
 void write_handler(struct intr_frame *f){
     uint32_t* args = ((uint32_t*) f->esp);
+    if (!is_valid_ptr(&args[1], 12)){
+        exit_process(-1);
+        NOT_REACHED();
+    }
     int file_des = (int) args[1];
     const void* buffer = (const void*) args[2];
     size_t buffer_size = (size_t) args[3];
-    struct file fds;
+    struct file* fds;
     int write_size;
     void* buffer_copy = buffer;
     size_t copy_buffer_size = buffer_size;
-    //
-//    if (!is_valid_ptr((uint8_t*) buffer_copy, (unsigned) copy_buffer_size)){
-//        exit_process(-1);
-//    }
-    //
     sema_down(&file_sema);
     switch (file_des){
         case STDIN_FILENO:
@@ -408,7 +418,7 @@ void write_handler(struct intr_frame *f){
         default:
             fds = get_file_from_fd(file_des);
             if (fds != NULL){
-                read_size = file_write(fds, buffer, buffer_size);
+                write_size = file_write(fds, buffer, buffer_size);
             }
 
             break;
@@ -421,20 +431,23 @@ void write_handler(struct intr_frame *f){
 
 void read_handler(struct intr_frame *f){
     uint32_t* args = ((uint32_t*) f->esp);
-    int file_des, void* buffer, size_t buffer_size
-    struct file fds;
+    if (!is_valid_ptr(&args[1], 12)){
+        exit_process(-1);
+        NOT_REACHED();
+    }
+    int file_des = (int) args[1];
+    void* buffer = (void*) args[2];
+    size_t buffer_size = (size_t) args[3];
+    struct file* fds;
     int read_size;
     void* buffer_copy = buffer;
     size_t copy_buffer_size = buffer_size;
-    if (!is_valid_ptr((uint8_t*) buffer_copy, (unsigned) copy_buffer_size)){
-        exit_process(-1);
-    }
     sema_down(&file_sema);
+    uint8_t c;
+    unsigned counter = buffer_size;
+    uint8_t *buf = buffer;
     switch (file_des){
         case STDIN_FILENO:
-            uint8_t c;
-            unsigned counter = buffer_size;
-            uint8_t *buf = buffer;
             while (counter > 1 && (c = input_getc()) != 0)
             {
                 *buf = c;
@@ -442,11 +455,11 @@ void read_handler(struct intr_frame *f){
                 counter = counter - 1;
             }
             *buf = 0;
-            read_size = size - counter;
+            read_size = buffer_size - counter;
             break;
         case STDOUT_FILENO:
             read_size = -1;
-            // exit_process(-1);
+          //  exit_process(-1);
             break;
         default:
             fds = get_file_from_fd(file_des);
@@ -458,4 +471,46 @@ void read_handler(struct intr_frame *f){
     }
     sema_up(&file_sema);
     f->eax = read_size;
+}
+
+void open_handler(struct intr_frame *f)
+{
+  uint32_t* args = ((uint32_t*) f->esp);
+  if (!is_valid_str(args[1]))
+    {
+      exit_process(-1);
+      NOT_REACHED();
+    }
+  struct file *curr_file;
+  sema_down (&file_sema);
+  curr_file = filesys_open (args[1]);
+  sema_up (&file_sema);
+  if (curr_file == NULL)
+    {
+      f->eax = -1;
+      // exit_process (-1);
+    }
+  else
+    {
+      struct thread *current = thread_current ();
+      struct open_file *of = (struct open_file *) malloc (sizeof (struct open_file));
+      of->this_file = curr_file;
+      of->fd = get_free_fd ();
+      list_push_back (&current->open_files, &of->file_elem);
+      f->eax = of->fd;
+    }
+  
+}
+
+/* Returns a valid file descriptor not already allocated for this thread */
+int get_free_fd () 
+{
+  struct thread *current = thread_current ();
+  if (list_empty (&current->open_files))
+    return 3; // 0, 1, and 2 are already allocated to STDIN, STDOUT, and STDERR
+  
+  struct list_elem *e;
+  e = list_end (&current->open_files);
+  struct open_file *of = list_entry (e, struct open_file, file_elem);
+  return (of->fd + 1);
 }
