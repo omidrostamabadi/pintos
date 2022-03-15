@@ -109,6 +109,7 @@ struct child
    struct list_elem elem;               
    tid_t tid;                           /* The thread's tid.*/
    struct semaphore wait_sem;           /* used in wait syscall */   
+   struct semaphore load_sem;           /* used for check load success */
    bool loaded_status;                  /* if false, file failed to load */
    bool has_parent;                     /* if false, child's parent exited */
    int exit_code;                                                            

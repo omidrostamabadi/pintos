@@ -77,10 +77,10 @@ syscall_handler (struct intr_frame *f UNUSED)
        seek_handler (f);
        break;
     case SYS_EXEC:
-      // exec_handler (f);
+        exec_handler (f);
        break;
     case SYS_WAIT:
-        //wait_handler (f);
+        wait_handler (f);
         break;
     case SYS_HALT:
       halt_handler (f);
@@ -284,7 +284,7 @@ void exec_handler(struct intr_frame *f){
       struct child *child = list_entry (e, struct child, elem);
       if (child->tid == tid)
         {
-          sema_down (&child->wait_sem);
+          sema_down (&child->load_sem);
           if (!child->loaded_status)
             {
               /* Child loading was failed */
