@@ -77,7 +77,7 @@ syscall_handler (struct intr_frame *f UNUSED)
        seek_handler (f);
        break;
     case SYS_EXEC:
-       exec_handler (f);
+      // exec_handler (f);
        break;
     case SYS_WAIT:
         //wait_handler (f);
