@@ -289,6 +289,7 @@ void exec_handler(struct intr_frame *f){
             {
               /* Child loading was failed */
               f->eax = -1;
+              return;
             }
           /* Child loaded successfully */
           f->eax=tid;
