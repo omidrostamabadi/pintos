@@ -75,12 +75,13 @@ process_execute (const char *file_name)
     free(file_name_no_args);
 
   child->tid = tid;
-  sema_init (&child->wait_sem, 0);
+  sema_init (&(child->wait_sem), 0);
+  sema_init (&(child->load_sem), 0);
   child->loaded_status = false;
   child->has_parent = true;
   child->exit_code = -1;
   struct thread *current_thread = thread_current ();
-  list_push_back (&current_thread->children, &child->elem);
+  list_push_back (&(current_thread->children), &(child->elem));
 
   return tid;
 }
@@ -105,12 +106,12 @@ start_process (void *file_name_)
   palloc_free_page (file_name);
   if (!success){
     struct thread *current_thread = thread_current ();
-    sema_up (&current_thread->its_child->wait_sem);
-    exit_process(-1);
+    sema_up (&current_thread->its_child->load_sem);
+    thread_exit();
   }
   struct thread *current_thread = thread_current ();
   current_thread->its_child->loaded_status=true;
-  sema_up (&current_thread->its_child->wait_sem);
+  sema_up (&current_thread->its_child->load_sem);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -178,7 +179,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-    sema_up (&its_child->wait_sem);
+   sema_up (&its_child->wait_sem);
     if(cur->its_child->has_parent == false)
       free(cur->its_child);
   //sema_up (&temporary);

@@ -90,13 +90,13 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */    uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-        /* Shared between thread.c and synch.c. */
+    struct child *its_child;             /* The child struct related to this thread */
+    /* Shared between thread.c and synch.c. */
    struct list_elem elem;              /* List element. */
    #ifdef USERPROG
    /* Owned by userprog/process.c. */
    struct list open_files;              /* list of open files for this thread */
    struct list children;                /* children of this thread */
-   struct child *its_child;             /* The child struct related to this thread */
    struct thread *parent;               /* parent of this process */
    bool load_status;                    /* if false, file failed to load */
    uint32_t *pagedir;                   /* Page directory. */
@@ -109,6 +109,7 @@ struct child
    struct list_elem elem;               
    tid_t tid;                           /* The thread's tid.*/
    struct semaphore wait_sem;           /* used in wait syscall */   
+   struct semaphore load_sem;           /* used for check load success */
    bool loaded_status;                  /* if false, file failed to load */
    bool has_parent;                     /* if false, child's parent exited */
    int exit_code;                                                            
