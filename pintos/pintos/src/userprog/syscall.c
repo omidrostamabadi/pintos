@@ -80,7 +80,7 @@ syscall_handler (struct intr_frame *f UNUSED)
        exec_handler (f);
        break;
     case SYS_WAIT:
-        wait_handler (f);
+        //wait_handler (f);
         break;
     case SYS_HALT:
       halt_handler (f);

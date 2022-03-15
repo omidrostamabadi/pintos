@@ -133,10 +133,10 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  //sema_down (&temporary);
-  struct thread *current_thread = thread_current ();
+  sema_down (&temporary);
+  /*struct thread *current_thread = thread_current ();
   struct list_elem *e;
-  /* Trying to find Child elem with thread ID = child_tid */
+  /* Trying to find Child elem with thread ID = child_tid
   for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
     {
       struct child *child = list_entry (e, struct child, elem);
@@ -150,7 +150,8 @@ process_wait (tid_t child_tid UNUSED)
         }
     }
 
-  return -1;
+  return -1;*/
+    return 0;
 }
 
 /* Free the current process's resources. */
@@ -178,10 +179,10 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-    sema_up (&its_child->wait_sem);
+   // sema_up (&its_child->wait_sem);
     if(cur->its_child->has_parent == false)
       free(cur->its_child);
-  //sema_up (&temporary);
+  sema_up (&temporary);
 }
 
 /* Sets up the CPU for running user code in the current
