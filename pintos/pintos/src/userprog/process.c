@@ -107,7 +107,7 @@ start_process (void *file_name_)
   if (!success){
     struct thread *current_thread = thread_current ();
     sema_up (&current_thread->its_child->load_sem);
-    exit_process(-1);
+    thread_exit();
   }
   struct thread *current_thread = thread_current ();
   current_thread->its_child->loaded_status=true;
