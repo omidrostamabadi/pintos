@@ -75,12 +75,12 @@ process_execute (const char *file_name)
     free(file_name_no_args);
 
   child->tid = tid;
-  sema_init (&child->wait_sem, 0);
+  sema_init (&(child->wait_sem), 0);
   child->loaded_status = false;
   child->has_parent = true;
   child->exit_code = -1;
   struct thread *current_thread = thread_current ();
-  list_push_back (&current_thread->children, &child->elem);
+  list_push_back (&(current_thread->children), &(child->elem));
 
   return tid;
 }
@@ -133,10 +133,10 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  sema_down (&temporary);
-  /*struct thread *current_thread = thread_current ();
+  //sema_down (&temporary);
+  struct thread *current_thread = thread_current ();
   struct list_elem *e;
-  /* Trying to find Child elem with thread ID = child_tid
+  /* Trying to find Child elem with thread ID = child_tid */
   for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
     {
       struct child *child = list_entry (e, struct child, elem);
@@ -144,14 +144,13 @@ process_wait (tid_t child_tid UNUSED)
         {
           sema_down (&child->wait_sem);
           int exit_code = child->exit_code;
-          list_remove (e);
-          free (child);
+          //list_remove (e);
+          //free (child);
           return exit_code;
         }
     }
 
-  return -1;*/
-    return 0;
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -179,10 +178,10 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-   // sema_up (&its_child->wait_sem);
+   sema_up (&its_child->wait_sem);
     if(cur->its_child->has_parent == false)
       free(cur->its_child);
-  sema_up (&temporary);
+  //sema_up (&temporary);
 }
 
 /* Sets up the CPU for running user code in the current
