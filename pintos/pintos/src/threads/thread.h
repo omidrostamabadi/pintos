@@ -95,6 +95,7 @@ struct thread
    struct list_elem elem;              /* List element. */
    #ifdef USERPROG
    /* Owned by userprog/process.c. */
+   struct file *exec_file;              /* Executable file for this process */
    struct list open_files;              /* list of open files for this thread */
    struct list children;                /* children of this thread */
    struct thread *parent;               /* parent of this process */

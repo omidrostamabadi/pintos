@@ -313,6 +313,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: open failed\n", argv[0]);
       goto done;
     }
+  
+  #ifdef USERPROG
+    /* Deny writing to the file */
+  //  sema_down (&file_sema);
+    file_deny_write (file);
+  // sema_up (&file_sema);
+    thread_current ()->exec_file = file;
+  #endif
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -397,7 +405,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  //file_close (file); // File is closed on thread_exit
   free(tmp_file_name);
   free(argv);
   return success;

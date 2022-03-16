@@ -317,6 +317,11 @@ thread_exit (void)
     {
       list_pop_front (&current_thread->children);
     }
+  
+  /* Allow write to executable file of this process by closing the file */
+  //sema_down (&file_sema);
+  file_close (current_thread->exec_file);
+  //sema_up (&file_sema);
   process_exit ();
 #endif
 
