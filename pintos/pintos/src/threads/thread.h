@@ -106,7 +106,7 @@ struct thread
    };
 struct child
    {
-   struct list_elem elem;               
+   struct list_elem child_elem;               
    tid_t tid;                           /* The thread's tid.*/
    struct semaphore wait_sem;           /* used in wait syscall */   
    struct semaphore load_sem;           /* used for check load success */
