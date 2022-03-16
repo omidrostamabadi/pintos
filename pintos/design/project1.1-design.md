@@ -90,7 +90,6 @@
 	   struct list open_files;            /* list of open files for this thread */
 	   struct list children;              /* children of this thread */
 	   struct list_elem child_elem;       /* child element */
-	   struct thread *parent;             /* parent of this process */
 	   bool load_status;                  /* if false, file failed to load */
 	   uint32_t *pagedir;                 /* Page directory. */
 	   #endif

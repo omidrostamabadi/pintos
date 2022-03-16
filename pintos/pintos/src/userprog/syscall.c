@@ -39,8 +39,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 {
   uint32_t* args = ((uint32_t*) f->esp);
     if(!is_valid_ptr(&args[0],sizeof (uint32_t))){
-        exit_process(-1);
-        NOT_REACHED();
+        exit_process (-1);
+        NOT_REACHED ();
     }
   /*
    * The following print statement, if uncommented, will print out the syscall
@@ -62,79 +62,82 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
 
     case SYS_FILESIZE:
-       filesize_handler (f);
-       break;
+      filesize_handler (f);
+      break;
 
     case SYS_CLOSE:
-       close_handler (f);
-       break;
+      close_handler (f);
+      break;
 
     case SYS_TELL:
-       tell_handler (f);
-       break;
+      tell_handler (f);
+      break;
 
     case SYS_SEEK:
-       seek_handler (f);
-       break;
+      seek_handler (f);
+      break;
     case SYS_EXEC:
-        exec_handler (f);
-       break;
+      exec_handler (f);
+      break;
     case SYS_WAIT:
-        wait_handler (f);
-        break;
+      wait_handler (f);
+      break;
     case SYS_HALT:
       halt_handler (f);
       break;
     case SYS_CREATE:
-        create_handler(f);
-        break;
+      create_handler(f);
+      break;
     case SYS_REMOVE:
-        remove_handler(f);
-        break;
+      remove_handler(f);
+      break;
     case SYS_WRITE:
-        write_handler(f);
-       break;
+      write_handler(f);
+      break;
     case SYS_READ:
-       read_handler(f);
-        break;
-
+      read_handler(f);
+      break;
     case SYS_OPEN:
-        open_handler(f);
-        break; 
+      open_handler(f);
+      break; 
     default:
       break;
     }
 }
 
-void halt_handler (struct intr_frame *f)
+void
+halt_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   shutdown_power_off (); // Defined in shutdown.c
 }
 
-void practice_handler (struct intr_frame *f)
+void
+practice_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   /* Make sure args[1] is valid */
   bool arg_valid = is_valid_ptr (&args[1], 4);
   /* Exit and free resources if not valid */
   if (!arg_valid) {
-      exit_process(-1);
-      NOT_REACHED();
+    exit_process (-1);
+    NOT_REACHED ();
   }
   f->eax = args[1] + 1;
 }
 
-void filesize_handler (struct intr_frame *f)
+void
+filesize_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   /* Make sure args[1] is valid */
   bool arg_valid = is_valid_ptr (&args[1], 4);
   /* Exit and free resources if not valid */
-  if (!arg_valid) {
-      exit_process(-1);
-      NOT_REACHED();
-  }
+  if (!arg_valid) 
+    {
+      exit_process (-1);
+      NOT_REACHED ();
+    }
   struct file *file = get_file_from_fd (args[1]);
   if (file != NULL)
     {
@@ -145,59 +148,62 @@ void filesize_handler (struct intr_frame *f)
   else
     {
       exit_process (-1);
-        NOT_REACHED();
+      NOT_REACHED ();
     }
 }
 
-void close_handler (struct intr_frame *f)
+void
+close_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   /* Make sure args[1] is valid */
   bool arg_valid = is_valid_ptr (&args[1], 4);
   /* Exit and free resources if not valid */
-  if (!arg_valid) {
-      exit_process(-1);
-      NOT_REACHED();
-  }
+  if (!arg_valid)
+    {
+       exit_process (-1);
+       NOT_REACHED ();
+    }
 
   struct file *file = get_file_from_fd (args[1]);
   if (file != NULL)
     {
-      sema_down (&file_sema); // Acquire global filesystem lock
-      file_close (file);
-      sema_up (&file_sema); // Release global filesystem lock
+       sema_down (&file_sema); // Acquire global filesystem lock
+       file_close (file);
+       sema_up (&file_sema); // Release global filesystem lock
 
-      /* Remove file from open_files list of this thread */
-      struct thread *current = thread_current ();
-      struct list_elem *e;
-      for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
-      e = list_next (e))
-        {
-          struct open_file *of = list_entry (e, struct open_file, file_elem);
-          if (of->fd == args[1])
-            {
-              list_remove (e);
-              free (of);
-              break; // Break for loop
-            }
-        }
-    }
+       /* Remove file from open_files list of this thread */
+       struct thread *current = thread_current ();
+       struct list_elem *e;
+       for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
+       e = list_next (e))
+         {
+           struct open_file *of = list_entry (e, struct open_file, file_elem);
+           if (of->fd == args[1])
+             {
+               list_remove (e);
+               free (of);
+               break; // Break for loop
+             }
+         }
+     }
   else
-    {
-      exit_process (-1);
-      NOT_REACHED();
-    }
+     {
+       exit_process (-1);
+       NOT_REACHED ();
+     }
 }
 
-void tell_handler (struct intr_frame *f)
+void
+tell_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   /* Make sure args[1] is valid */
   bool arg_valid = is_valid_ptr (&args[1], 4);
   /* Exit and free resources if not valid */
   if (!arg_valid) {
-      exit_process(-1);
-      NOT_REACHED();
+      exit_process (-1);
+      NOT_REACHED ();
   }
 
   struct file *file = get_file_from_fd (args[1]);
@@ -209,21 +215,23 @@ void tell_handler (struct intr_frame *f)
     }
   else
     {
-      exit_process (-1);
-      NOT_REACHED();
+       exit_process (-1);
+       NOT_REACHED ();
     }
 }
 
-void seek_handler (struct intr_frame *f)
+void
+seek_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   /* Make sure args[1] & args[2] are valid */
   bool arg_valid = is_valid_ptr (&args[1], 8);
   /* Exit and free resources if not valid */
-  if (!arg_valid) {
-      exit_process(-1);
-      NOT_REACHED();
-  }
+  if (!arg_valid)
+    {
+       exit_process (-1);
+       NOT_REACHED ();
+    }
 
   struct file *file = get_file_from_fd (args[1]);
   if (file != NULL)
@@ -233,45 +241,47 @@ void seek_handler (struct intr_frame *f)
       sema_up (&file_sema); // Release global filesystem lock
       int file_pos = (int) args[2];
       if (file_pos < 0)
-      {
-        exit_process (-1);
-        NOT_REACHED();
-      }
+        {
+          exit_process (-1);
+          NOT_REACHED ();
+        }
       if (args[2] < f_size)
-      {
-        sema_down (&file_sema); // Acquire global filesystem lock
-        file_seek (file, args[2]);
-        sema_up (&file_sema); // Release global filesystem lock
-      }
+        {
+          sema_down (&file_sema); // Acquire global filesystem lock
+          file_seek (file, args[2]);
+          sema_up (&file_sema); // Release global filesystem lock
+        }
       else
-      {
-        exit_process (-1);
-        NOT_REACHED();
-      }
+        {
+          exit_process (-1);
+          NOT_REACHED ();
+        }
     }
   else
     {
-      exit_process (-1);
-      NOT_REACHED();
+       exit_process (-1);
+       NOT_REACHED ();
     }
 }
 
 /* Handle exec Syscall */
-void exec_handler(struct intr_frame *f){
+void
+exec_handler(struct intr_frame *f){
   uint32_t* args = ((uint32_t*) f->esp);
 
   /* Validate char *pointer first to ensure all four bytes are valid */
   if (!is_valid_ptr (&args[1], 4))
    {
-     exit_process (-1);
-     NOT_REACHED ();
+      exit_process (-1);
+      NOT_REACHED ();
    }
 
   /* Now validate the string to ensure its validity */
-  if(!is_valid_str (args[1])){
-    exit_process(-1);
-    NOT_REACHED();
-  }
+  if(!is_valid_str (args[1]))
+    {
+      exit_process (-1);
+      NOT_REACHED ();
+    }
   char* command_line = args[1];
   sema_down (&file_sema);
   tid_t tid = process_execute (command_line);
@@ -279,9 +289,9 @@ void exec_handler(struct intr_frame *f){
 
   if (tid == TID_ERROR)
     {
-      /* Process execution is failed */
-      f->eax = -1;
-      return;
+       /* Process execution is failed */
+       f->eax = -1;
+       return;
     }
 
   struct thread *current_thread = thread_current ();
@@ -292,16 +302,16 @@ void exec_handler(struct intr_frame *f){
       struct child *child = list_entry (e, struct child, child_elem);
       if (child->tid == tid)
         {
-          sema_down (&child->load_sem);
-          if (!child->loaded_status)
-            {
-              /* Child loading was failed */
-              f->eax = -1;
-              return;
-            }
-          /* Child loaded successfully */
-          f->eax=tid;
-          return;
+           sema_down (&child->load_sem);
+           if (!child->loaded_status)
+             {
+               /* Child loading was failed */
+               f->eax = -1;
+               return;
+             }
+           /* Child loaded successfully */
+           f->eax=tid;
+           return;
         }
     }
   /* Child thread not found */
@@ -309,24 +319,30 @@ void exec_handler(struct intr_frame *f){
 }
 
 /* Handle wait Syscall */
-void wait_handler(struct intr_frame *f){
+void
+wait_handler(struct intr_frame *f)
+{
     uint32_t* args = ((uint32_t*) f->esp);
-    if(!is_valid_ptr (&args[1],sizeof (tid_t))){
-        exit_process(-1);
-        NOT_REACHED();
-    }
+    if(!is_valid_ptr (&args[1],sizeof (tid_t)))
+      {
+        exit_process (-1);
+        NOT_REACHED ();
+      }
     tid_t child_tid = args[1];
 
   f->eax = process_wait (child_tid);
 }
 
 /* Handle exit Syscall */
-void exit_handler(struct intr_frame *f){
+void
+exit_handler(struct intr_frame *f)
+{
   uint32_t* args = ((uint32_t*) f->esp);
-  if(!is_valid_ptr (&args[1],sizeof (int))){
-        exit_process(-1);
-        NOT_REACHED();
-  }
+  if(!is_valid_ptr (&args[1],sizeof (int)))
+    {
+      exit_process (-1);
+      NOT_REACHED ();
+    }
   int exit_code = args[1];
   f->eax = exit_code;
   struct thread *current_thread = thread_current ();
@@ -336,7 +352,8 @@ void exit_handler(struct intr_frame *f){
 }
 
 /* Exit and kill current process */
-void exit_process (int exit_code)
+void
+exit_process (int exit_code)
 {
   struct thread *current_thread = thread_current ();
   current_thread->its_child->exit_code = exit_code;
@@ -354,30 +371,33 @@ get_file_from_fd (int fd)
 {
     struct thread *current = thread_current ();
     struct list_elem *e;
-    for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
-         e = list_next (e))
-    {
+    for (e = list_begin (&current->open_files); e != list_end (&current->open_files); e = list_next (e))
+     {
         struct open_file *of = list_entry (e, struct open_file, file_elem);
         if (of->fd == fd)
         {
             return of->this_file;
         }
-    }
+     }
 
     /* When reach here, fd cannot be found */
     return NULL;
 }
 
-void create_handler(struct intr_frame *f){
+void
+create_handler(struct intr_frame *f)
+{
     uint32_t* args = ((uint32_t*) f->esp);
-    if (!is_valid_str(args[1])){
-        exit_process(-1);
-        NOT_REACHED();
-    }
-    if (!is_valid_ptr(&args[2], 4)){
-        exit_process(-1);
-        NOT_REACHED();
-    }
+    if (!is_valid_str(args[1]))
+      {
+        exit_process (-1);
+        NOT_REACHED ();
+      }
+    if (!is_valid_ptr(&args[2], 4))
+      {
+        exit_process (-1);
+        NOT_REACHED ();
+      }
     const char* file_name = (const char*) args[1];
     size_t size = (size_t) args[2];
     bool status = false;
@@ -387,11 +407,14 @@ void create_handler(struct intr_frame *f){
     f->eax = status;
 }
 
-void remove_handler(struct intr_frame *f){
+void
+remove_handler(struct intr_frame *f)
+{
     uint32_t* args = ((uint32_t*) f->esp);
-    if (!is_valid_str(args[1])){
-        exit_process(-1);
-        NOT_REACHED();
+    if (!is_valid_str(args[1]))
+    {
+        exit_process (-1);
+        NOT_REACHED ();
     }
     const char* file_name = (const char*) args[1];
     bool status = false;
@@ -401,11 +424,13 @@ void remove_handler(struct intr_frame *f){
     f->eax = status;
 }
 
-void write_handler(struct intr_frame *f){
+void
+write_handler(struct intr_frame *f)
+{
     uint32_t* args = ((uint32_t*) f->esp);
     if (!is_valid_ptr(&args[1], 12)){
-        exit_process(-1);
-        NOT_REACHED();
+        exit_process (-1);
+        NOT_REACHED ();
     }
     int file_des = (int) args[1];
     const void* buffer = (const void*) args[2];
@@ -414,8 +439,8 @@ void write_handler(struct intr_frame *f){
     /* Must validate the buffer itsself */
     if (!is_valid_ptr (buffer, buffer_size))
      {
-       exit_process(-1);
-       NOT_REACHED();
+       exit_process (-1);
+       NOT_REACHED ();
      }
 
     struct file* fds;
@@ -426,7 +451,6 @@ void write_handler(struct intr_frame *f){
     switch (file_des){
         case STDIN_FILENO:
             write_size = -1;
-          //  exit_process(-1);
             break;
         case STDOUT_FILENO:
             putbuf(buffer, buffer_size);
@@ -446,11 +470,13 @@ void write_handler(struct intr_frame *f){
 
 
 
-void read_handler(struct intr_frame *f){
+void
+read_handler(struct intr_frame *f)
+{
     uint32_t* args = ((uint32_t*) f->esp);
     if (!is_valid_ptr(&args[1], 12)){
-        exit_process(-1);
-        NOT_REACHED();
+        exit_process (-1);
+        NOT_REACHED ();
     }
     int file_des = (int) args[1];
     void* buffer = (void*) args[2];
@@ -459,8 +485,8 @@ void read_handler(struct intr_frame *f){
     /* Must validate the buffer itsself */
     if (!is_valid_ptr (buffer, buffer_size))
      {
-       exit_process(-1);
-       NOT_REACHED();
+       exit_process (-1);
+       NOT_REACHED ();
      }
     struct file* fds;
     int read_size;
@@ -483,7 +509,6 @@ void read_handler(struct intr_frame *f){
             break;
         case STDOUT_FILENO:
             read_size = -1;
-          //  exit_process(-1);
             break;
         default:
             fds = get_file_from_fd(file_des);
@@ -497,13 +522,14 @@ void read_handler(struct intr_frame *f){
     f->eax = read_size;
 }
 
-void open_handler(struct intr_frame *f)
+void
+open_handler(struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
   if (!is_valid_str(args[1]))
     {
-      exit_process(-1);
-      NOT_REACHED();
+      exit_process (-1);
+      NOT_REACHED ();
     }
   struct file *curr_file;
   sema_down (&file_sema);
@@ -512,7 +538,6 @@ void open_handler(struct intr_frame *f)
   if (curr_file == NULL)
     {
       f->eax = -1;
-      // exit_process (-1);
     }
   else
     {

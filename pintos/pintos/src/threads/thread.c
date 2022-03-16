@@ -12,7 +12,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "userprog/syscall.h"
-//#include "lib/user/syscall.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif

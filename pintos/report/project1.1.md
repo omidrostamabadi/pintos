@@ -24,15 +24,3 @@
 
 > لطفا در این قسمت تمامی منابعی (غیر از مستندات Pintos، اسلاید‌ها و دیگر منابع  درس) را که برای تمرین از آن‌ها استفاده کرده‌اید در این قسمت بنویسید.
 
-+ https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
-
-+ https://www.eecg.utoronto.ca/~amza/www.mindsec.com/files/x86regs.html
-
-+ https://en.wikipedia.org/wiki/X86_calling_conventions
-
-+ https://www.felixcloutier.com/x86/iret:iretd
-+ https://pdos.csail.mit.edu/6.828/2008/lec/l-interrupt.html
-+ https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md
-+ https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html
-+ https://openwares.net/2019/02/09/cpl-vs-dpl-vs-rpl/
-
