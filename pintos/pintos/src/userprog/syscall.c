@@ -426,7 +426,7 @@ void write_handler(struct intr_frame *f){
     switch (file_des){
         case STDIN_FILENO:
             write_size = -1;
-             exit_process(-1);
+          //  exit_process(-1);
             break;
         case STDOUT_FILENO:
             putbuf(buffer, buffer_size);

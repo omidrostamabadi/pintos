@@ -316,9 +316,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   
   #ifdef USERPROG
     /* Deny writing to the file */
-  //  sema_down (&file_sema);
+    sema_down (&file_sema);
     file_deny_write (file);
-  // sema_up (&file_sema);
+    sema_up (&file_sema);
     thread_current ()->exec_file = file;
   #endif
 

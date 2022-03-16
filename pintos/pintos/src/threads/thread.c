@@ -294,9 +294,9 @@ thread_exit (void)
   for (e = list_begin (&current_thread->open_files); e != list_end (&current_thread->open_files); e = list_next (e))
     {
       struct open_file *open_file = list_entry (e, struct open_file, file_elem);
-    //  sema_down (&file_sema);
+      sema_down (&file_sema);
       file_close (open_file->this_file);
-    //  sema_up (&file_sema);
+      sema_up (&file_sema);
     }
 
   /* Free open files */
@@ -319,9 +319,9 @@ thread_exit (void)
     }
   
   /* Allow write to executable file of this process by closing the file */
-  //sema_down (&file_sema);
+  sema_down (&file_sema);
   file_close (current_thread->exec_file);
-  //sema_up (&file_sema);
+  sema_up (&file_sema);
   process_exit ();
 #endif
 
