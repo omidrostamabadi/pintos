@@ -7,6 +7,8 @@
 #include "threads/synch.h"
 #include "threads/fixed-point.h"
 
+extern struct semaphore file_sema;
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -95,6 +97,7 @@ struct thread
    struct list_elem elem;              /* List element. */
    #ifdef USERPROG
    /* Owned by userprog/process.c. */
+   struct file *exec_file;              /* Executable file for this process */
    struct list open_files;              /* list of open files for this thread */
    struct list children;                /* children of this thread */
    struct thread *parent;               /* parent of this process */
@@ -106,7 +109,7 @@ struct thread
    };
 struct child
    {
-   struct list_elem elem;               
+   struct list_elem child_elem;               
    tid_t tid;                           /* The thread's tid.*/
    struct semaphore wait_sem;           /* used in wait syscall */   
    struct semaphore load_sem;           /* used for check load success */

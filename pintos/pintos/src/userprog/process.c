@@ -20,7 +20,6 @@
 #include "threads/vaddr.h"
 #include "userprog/syscall.h"
 
-static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -34,7 +33,6 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
-  sema_init (&temporary, 0);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -81,7 +79,7 @@ process_execute (const char *file_name)
   child->has_parent = true;
   child->exit_code = -1;
   struct thread *current_thread = thread_current ();
-  list_push_back (&(current_thread->children), &(child->elem));
+  list_push_back (&(current_thread->children), &(child->child_elem));
 
   return tid;
 }
@@ -134,13 +132,12 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  //sema_down (&temporary);
   struct thread *current_thread = thread_current ();
   struct list_elem *e;
   /* Trying to find Child elem with thread ID = child_tid */
   for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
     {
-      struct child *child = list_entry (e, struct child, elem);
+      struct child *child = list_entry (e, struct child, child_elem);
       if (child->tid == child_tid)
         {
           sema_down (&child->wait_sem);
@@ -182,7 +179,6 @@ process_exit (void)
    sema_up (&its_child->wait_sem);
     if(cur->its_child->has_parent == false)
       free(cur->its_child);
-  //sema_up (&temporary);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -313,6 +309,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: open failed\n", argv[0]);
       goto done;
     }
+  
+  #ifdef USERPROG
+    /* Deny writing to the file */
+    sema_down (&file_sema);
+    file_deny_write (file);
+    sema_up (&file_sema);
+    thread_current ()->exec_file = file;
+  #endif
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -397,7 +401,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
   free(tmp_file_name);
   free(argv);
   return success;

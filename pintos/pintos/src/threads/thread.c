@@ -12,6 +12,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "userprog/syscall.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -309,13 +310,18 @@ thread_exit (void)
   /* set NULL for parent of current thread's children */
   for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
     {
-      struct child *child = list_entry (e, struct child, elem);
+      struct child *child = list_entry (e, struct child, child_elem);
       child->has_parent = false;
     }
   while (! list_empty (&current_thread->children))
     {
       list_pop_front (&current_thread->children);
     }
+  
+  /* Allow write to executable file of this process by closing the file */
+  sema_down (&file_sema);
+  file_close (current_thread->exec_file);
+  sema_up (&file_sema);
   process_exit ();
 #endif
 
@@ -619,3 +625,23 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/* Returns the corresponding fd for given file 
+   Returns -1 if file cannot be found */
+int get_fd_from_file (struct file *file)
+{
+  struct thread *current = thread_current ();
+    struct list_elem *e;
+    for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
+         e = list_next (e))
+    {
+        struct open_file *of = list_entry (e, struct open_file, file_elem);
+        if (of->this_file == file)
+        {
+            return of->fd;
+        }
+    }
+
+    /* When reach here, fd cannot be found */
+    return -1;
+}
