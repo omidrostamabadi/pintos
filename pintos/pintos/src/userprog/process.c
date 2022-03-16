@@ -69,7 +69,7 @@ process_execute (const char *file_name)
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
-  if(first_space != NULL)
+  if (first_space != NULL)
     free(file_name_no_args);
 
   child->tid = tid;
@@ -135,7 +135,8 @@ process_wait (tid_t child_tid UNUSED)
   struct thread *current_thread = thread_current ();
   struct list_elem *e;
   /* Trying to find Child elem with thread ID = child_tid */
-  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
+  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children);
+       e = list_next (e))
     {
       struct child *child = list_entry (e, struct child, child_elem);
       if (child->tid == child_tid)
@@ -177,7 +178,7 @@ process_exit (void)
       pagedir_destroy (pd);
     }
    sema_up (&its_child->wait_sem);
-    if(cur->its_child->has_parent == false)
+    if (cur->its_child->has_parent == false)
       free(cur->its_child);
 }
 
@@ -294,8 +295,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
   strlcpy(tmp_file_name, file_name, file_name_size);
   char *save_ptr, *token;
   int argc = 0;
-  for(token = strtok_r(tmp_file_name, " ", &save_ptr); token != NULL;
-  token = strtok_r(NULL, " ", &save_ptr))
+  for (token = strtok_r(tmp_file_name, " ", &save_ptr); token != NULL;
+       token = strtok_r(NULL, " ", &save_ptr))
    {
      argv[argc] = token;
      argc++;
@@ -555,7 +556,7 @@ setup_stack (void **esp, const char **argv, int argc)
   esp_c -= (esp_align % 16); // Must be aligned to 16-byte boundary
   uint32_t *esp_u = (uint32_t*) esp_c; // Used to write pointers
   /* Push the string pointers */
-  for(int i = 0; i <= argc; i++)
+  for (int i = 0; i <= argc; i++)
     {
       esp_u -= 1;
       *esp_u = string_address[argc - i]; // Push in reverse order
@@ -568,7 +569,7 @@ setup_stack (void **esp, const char **argv, int argc)
   esp_u -= 1;
   *esp_u = 1234U;
   *esp = (void*) esp_u;
-  free(string_address);
+  free (string_address);
   return success;
 }
 
