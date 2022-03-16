@@ -260,6 +260,14 @@ void seek_handler (struct intr_frame *f)
 void exec_handler(struct intr_frame *f){
   uint32_t* args = ((uint32_t*) f->esp);
 
+  /* Validate char *pointer first to ensure all four bytes are valid */
+  if (!is_valid_ptr (&args[1], 4))
+   {
+     exit_process (-1);
+     NOT_REACHED ();
+   }
+
+  /* Now validate the string to ensure its validity */
   if(!is_valid_str (args[1])){
     exit_process(-1);
     NOT_REACHED();
@@ -281,7 +289,7 @@ void exec_handler(struct intr_frame *f){
   /* Trying to find Child elem with thread ID = tid */
   for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
     {
-      struct child *child = list_entry (e, struct child, elem);
+      struct child *child = list_entry (e, struct child, child_elem);
       if (child->tid == tid)
         {
           sema_down (&child->load_sem);
@@ -402,6 +410,14 @@ void write_handler(struct intr_frame *f){
     int file_des = (int) args[1];
     const void* buffer = (const void*) args[2];
     size_t buffer_size = (size_t) args[3];
+
+    /* Must validate the buffer itsself */
+    if (!is_valid_ptr (buffer, buffer_size))
+     {
+       exit_process(-1);
+       NOT_REACHED();
+     }
+
     struct file* fds;
     int write_size;
     void* buffer_copy = buffer;
@@ -439,6 +455,13 @@ void read_handler(struct intr_frame *f){
     int file_des = (int) args[1];
     void* buffer = (void*) args[2];
     size_t buffer_size = (size_t) args[3];
+
+    /* Must validate the buffer itsself */
+    if (!is_valid_ptr (buffer, buffer_size))
+     {
+       exit_process(-1);
+       NOT_REACHED();
+     }
     struct file* fds;
     int read_size;
     void* buffer_copy = buffer;
@@ -511,7 +534,7 @@ int get_free_fd ()
     return 3; // 0, 1, and 2 are already allocated to STDIN, STDOUT, and STDERR
   
   struct list_elem *e;
-  e = list_end (&current->open_files);
+  e = list_back (&current->open_files); // Should ensure list is not empty
   struct open_file *of = list_entry (e, struct open_file, file_elem);
   return (of->fd + 1);
 }
