@@ -178,7 +178,7 @@ close_handler (struct intr_frame *f)
       struct thread *current = thread_current ();
       struct list_elem *e;
       for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
-      e = list_next (e))
+           e = list_next (e))
         {
           struct open_file *of = list_entry (e, struct open_file, file_elem);
           if (of->fd == args[1])
@@ -301,7 +301,7 @@ exec_handler(struct intr_frame *f){
   struct list_elem *e;
   /* Trying to find Child elem with thread ID = tid */
   for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); 
-  e = list_next (e))
+       e = list_next (e))
     {
       struct child *child = list_entry (e, struct child, child_elem);
       if (child->tid == tid)
@@ -375,7 +375,8 @@ get_file_from_fd (int fd)
 {
     struct thread *current = thread_current ();
     struct list_elem *e;
-    for (e = list_begin (&current->open_files); e != list_end (&current->open_files); e = list_next (e))
+    for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
+         e = list_next (e))
      {
         struct open_file *of = list_entry (e, struct open_file, file_elem);
         if (of->fd == fd)
