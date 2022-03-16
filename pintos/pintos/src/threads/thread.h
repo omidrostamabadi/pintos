@@ -108,19 +108,20 @@ struct thread
    unsigned magic;                      /* Detects stack overflow. */  
    };
 struct child
-   {
-   struct list_elem child_elem;               
-   tid_t tid;                           /* The thread's tid.*/
-   struct semaphore wait_sem;           /* used in wait syscall */   
-   struct semaphore load_sem;           /* used for check load success */
-   bool loaded_status;                  /* if false, file failed to load */
-   bool has_parent;                     /* if false, child's parent exited */
-   int exit_code;                                                            
-   };
-struct open_file {
-   int fd;                              /* file descriptor of this file */
-   struct file *this_file;              /* used for filesys functions */
-   struct list_elem file_elem;
+  {
+    struct list_elem child_elem;               
+    tid_t tid;                           /* The thread's tid.*/
+    struct semaphore wait_sem;           /* used in wait syscall */   
+    struct semaphore load_sem;           /* used for check load success */
+    bool loaded_status;                  /* if false, file failed to load */
+    bool has_parent;                     /* if false, child's parent exited */
+    int exit_code;                                                            
+  };
+struct open_file 
+{
+  int fd;                              /* file descriptor of this file */
+  struct file *this_file;              /* used for filesys functions */
+  struct list_elem file_elem;
 };  
 
 /* If false (default), use round-robin scheduler.

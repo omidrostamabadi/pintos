@@ -294,7 +294,8 @@ is_valid_ptr (uint8_t *uaddr, size_t size)
    3. If pointer points at unmapped address, it is invalid
    Cannot use is_valid_ptr since the size of string is unknown 
    Returns true if pointer is valid, false otherwise. */
-bool is_valid_str (char *uaddr)
+bool 
+is_valid_str (char *uaddr)
 {
   if (uaddr == NULL || !is_user_vaddr(uaddr))
     return false;
@@ -311,7 +312,7 @@ bool is_valid_str (char *uaddr)
       char curr_char = *uaddr;
 
       /* Check if end of string is reached */
-      if(curr_char == '\0') 
+      if (curr_char == '\0') 
         {
           break;
         }
