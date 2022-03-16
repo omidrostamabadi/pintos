@@ -186,7 +186,7 @@ thread_create (const char *name, int priority,
   tid = t->tid = allocate_tid ();
 
   /* Set the thread's child struct */
-  t->its_child=its_child;
+  t->its_child = its_child;
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -291,7 +291,8 @@ thread_exit (void)
   struct thread *current_thread = thread_current ();
   struct list_elem *e;
   /* Close open files */
-  for (e = list_begin (&current_thread->open_files); e != list_end (&current_thread->open_files); e = list_next (e))
+  for (e = list_begin (&current_thread->open_files); e != list_end (&current_thread->open_files);
+       e = list_next (e))
     {
       struct open_file *open_file = list_entry (e, struct open_file, file_elem);
       sema_down (&file_sema);
@@ -308,7 +309,8 @@ thread_exit (void)
     }
 
   /* set NULL for parent of current thread's children */
-  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
+  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children);
+       e = list_next (e))
     {
       struct child *child = list_entry (e, struct child, child_elem);
       child->has_parent = false;
@@ -504,8 +506,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
 
   #ifdef USERPROG
-    list_init(&t->children);
-    list_init(&t->open_files);
+    list_init (&t->children);
+    list_init (&t->open_files);
   #endif
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -634,13 +636,13 @@ int get_fd_from_file (struct file *file)
     struct list_elem *e;
     for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
          e = list_next (e))
-    {
+      {
         struct open_file *of = list_entry (e, struct open_file, file_elem);
         if (of->this_file == file)
         {
-            return of->fd;
+          return of->fd;
         }
-    }
+      }
 
     /* When reach here, fd cannot be found */
     return -1;
