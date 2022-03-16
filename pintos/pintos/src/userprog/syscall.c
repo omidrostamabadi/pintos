@@ -31,17 +31,18 @@ void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  sema_init(&file_sema,1);
+  sema_init(&file_sema, 1);
 }
 
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
   uint32_t* args = ((uint32_t*) f->esp);
-    if(!is_valid_ptr(&args[0],sizeof (uint32_t))){
+    if (!is_valid_ptr (&args[0], sizeof (uint32_t)))
+      {
         exit_process (-1);
         NOT_REACHED ();
-    }
+      }
   /*
    * The following print statement, if uncommented, will print out the syscall
    * number whenever a process enters a system call. You might find it useful
@@ -119,10 +120,11 @@ practice_handler (struct intr_frame *f)
   /* Make sure args[1] is valid */
   bool arg_valid = is_valid_ptr (&args[1], 4);
   /* Exit and free resources if not valid */
-  if (!arg_valid) {
-    exit_process (-1);
-    NOT_REACHED ();
-  }
+  if (!arg_valid) 
+    {
+      exit_process (-1);
+      NOT_REACHED ();
+    }
   f->eax = args[1] + 1;
 }
 
@@ -161,37 +163,37 @@ close_handler (struct intr_frame *f)
   /* Exit and free resources if not valid */
   if (!arg_valid)
     {
-       exit_process (-1);
-       NOT_REACHED ();
+      exit_process (-1);
+      NOT_REACHED ();
     }
 
   struct file *file = get_file_from_fd (args[1]);
   if (file != NULL)
     {
-       sema_down (&file_sema); // Acquire global filesystem lock
-       file_close (file);
-       sema_up (&file_sema); // Release global filesystem lock
+      sema_down (&file_sema); // Acquire global filesystem lock
+      file_close (file);
+      sema_up (&file_sema); // Release global filesystem lock
 
-       /* Remove file from open_files list of this thread */
-       struct thread *current = thread_current ();
-       struct list_elem *e;
-       for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
-       e = list_next (e))
-         {
-           struct open_file *of = list_entry (e, struct open_file, file_elem);
-           if (of->fd == args[1])
-             {
-               list_remove (e);
-               free (of);
-               break; // Break for loop
-             }
-         }
-     }
+      /* Remove file from open_files list of this thread */
+      struct thread *current = thread_current ();
+      struct list_elem *e;
+      for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
+      e = list_next (e))
+        {
+          struct open_file *of = list_entry (e, struct open_file, file_elem);
+          if (of->fd == args[1])
+            {
+              list_remove (e);
+              free (of);
+              break; // Break for loop
+            }
+        }
+    }
   else
-     {
-       exit_process (-1);
-       NOT_REACHED ();
-     }
+    {
+      exit_process (-1);
+      NOT_REACHED ();
+    }
 }
 
 void
@@ -201,10 +203,11 @@ tell_handler (struct intr_frame *f)
   /* Make sure args[1] is valid */
   bool arg_valid = is_valid_ptr (&args[1], 4);
   /* Exit and free resources if not valid */
-  if (!arg_valid) {
+  if (!arg_valid) 
+    {
       exit_process (-1);
       NOT_REACHED ();
-  }
+    }
 
   struct file *file = get_file_from_fd (args[1]);
   if (file != NULL)
@@ -215,8 +218,8 @@ tell_handler (struct intr_frame *f)
     }
   else
     {
-       exit_process (-1);
-       NOT_REACHED ();
+      exit_process (-1);
+      NOT_REACHED ();
     }
 }
 
@@ -229,8 +232,8 @@ seek_handler (struct intr_frame *f)
   /* Exit and free resources if not valid */
   if (!arg_valid)
     {
-       exit_process (-1);
-       NOT_REACHED ();
+      exit_process (-1);
+      NOT_REACHED ();
     }
 
   struct file *file = get_file_from_fd (args[1]);
@@ -259,8 +262,8 @@ seek_handler (struct intr_frame *f)
     }
   else
     {
-       exit_process (-1);
-       NOT_REACHED ();
+      exit_process (-1);
+      NOT_REACHED ();
     }
 }
 
@@ -289,15 +292,16 @@ exec_handler(struct intr_frame *f){
 
   if (tid == TID_ERROR)
     {
-       /* Process execution is failed */
-       f->eax = -1;
-       return;
+      /* Process execution is failed */
+      f->eax = -1;
+      return;
     }
 
   struct thread *current_thread = thread_current ();
   struct list_elem *e;
   /* Trying to find Child elem with thread ID = tid */
-  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
+  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); 
+  e = list_next (e))
     {
       struct child *child = list_entry (e, struct child, child_elem);
       if (child->tid == tid)
@@ -305,9 +309,9 @@ exec_handler(struct intr_frame *f){
            sema_down (&child->load_sem);
            if (!child->loaded_status)
              {
-               /* Child loading was failed */
-               f->eax = -1;
-               return;
+              /* Child loading was failed */
+              f->eax = -1;
+              return;
              }
            /* Child loaded successfully */
            f->eax=tid;
@@ -322,13 +326,13 @@ exec_handler(struct intr_frame *f){
 void
 wait_handler(struct intr_frame *f)
 {
-    uint32_t* args = ((uint32_t*) f->esp);
-    if(!is_valid_ptr (&args[1],sizeof (tid_t)))
-      {
-        exit_process (-1);
-        NOT_REACHED ();
-      }
-    tid_t child_tid = args[1];
+  uint32_t* args = ((uint32_t*) f->esp);
+  if(!is_valid_ptr (&args[1],sizeof (tid_t)))
+    {
+      exit_process (-1);
+      NOT_REACHED ();
+    }
+  tid_t child_tid = args[1];
 
   f->eax = process_wait (child_tid);
 }
@@ -376,7 +380,7 @@ get_file_from_fd (int fd)
         struct open_file *of = list_entry (e, struct open_file, file_elem);
         if (of->fd == fd)
         {
-            return of->this_file;
+          return of->this_file;
         }
      }
 
@@ -385,15 +389,15 @@ get_file_from_fd (int fd)
 }
 
 void
-create_handler(struct intr_frame *f)
+create_handler (struct intr_frame *f)
 {
     uint32_t* args = ((uint32_t*) f->esp);
-    if (!is_valid_str(args[1]))
+    if (!is_valid_str (args[1]))
       {
         exit_process (-1);
         NOT_REACHED ();
       }
-    if (!is_valid_ptr(&args[2], 4))
+    if (!is_valid_ptr (&args[2], 4))
       {
         exit_process (-1);
         NOT_REACHED ();
@@ -401,26 +405,26 @@ create_handler(struct intr_frame *f)
     const char* file_name = (const char*) args[1];
     size_t size = (size_t) args[2];
     bool status = false;
-    sema_down(&file_sema);
-    status = filesys_create(file_name, size);
-    sema_up(&file_sema);
+    sema_down (&file_sema);
+    status = filesys_create (file_name, size);
+    sema_up (&file_sema);
     f->eax = status;
 }
 
 void
-remove_handler(struct intr_frame *f)
+remove_handler (struct intr_frame *f)
 {
     uint32_t* args = ((uint32_t*) f->esp);
-    if (!is_valid_str(args[1]))
+    if (!is_valid_str (args[1]))
     {
-        exit_process (-1);
-        NOT_REACHED ();
+      exit_process (-1);
+      NOT_REACHED ();
     }
     const char* file_name = (const char*) args[1];
     bool status = false;
-    sema_down(&file_sema);
-    status = filesys_remove(file_name);
-    sema_up(&file_sema);
+    sema_down (&file_sema);
+    status = filesys_remove (file_name);
+    sema_up (&file_sema);
     f->eax = status;
 }
 
@@ -428,9 +432,9 @@ void
 write_handler(struct intr_frame *f)
 {
     uint32_t* args = ((uint32_t*) f->esp);
-    if (!is_valid_ptr(&args[1], 12)){
-        exit_process (-1);
-        NOT_REACHED ();
+    if (!is_valid_ptr (&args[1], 12)){
+      exit_process (-1);
+      NOT_REACHED ();
     }
     int file_des = (int) args[1];
     const void* buffer = (const void*) args[2];
@@ -447,8 +451,9 @@ write_handler(struct intr_frame *f)
     int write_size;
     void* buffer_copy = buffer;
     size_t copy_buffer_size = buffer_size;
-    sema_down(&file_sema);
-    switch (file_des){
+    sema_down (&file_sema);
+    switch (file_des)
+      {
         case STDIN_FILENO:
             write_size = -1;
             break;
@@ -458,13 +463,14 @@ write_handler(struct intr_frame *f)
             break;
         default:
             fds = get_file_from_fd(file_des);
-            if (fds != NULL){
+            if (fds != NULL)
+              {
                 write_size = file_write(fds, buffer, buffer_size);
-            }
+              }
 
             break;
-    }
-    sema_up(&file_sema);
+      }
+    sema_up (&file_sema);
     f->eax = write_size;
 }
 
@@ -474,10 +480,11 @@ void
 read_handler(struct intr_frame *f)
 {
     uint32_t* args = ((uint32_t*) f->esp);
-    if (!is_valid_ptr(&args[1], 12)){
+    if (!is_valid_ptr (&args[1], 12))
+      {
         exit_process (-1);
         NOT_REACHED ();
-    }
+      }
     int file_des = (int) args[1];
     void* buffer = (void*) args[2];
     size_t buffer_size = (size_t) args[3];
@@ -492,18 +499,19 @@ read_handler(struct intr_frame *f)
     int read_size;
     void* buffer_copy = buffer;
     size_t copy_buffer_size = buffer_size;
-    sema_down(&file_sema);
+    sema_down (&file_sema);
     uint8_t c;
     unsigned counter = buffer_size;
     uint8_t *buf = buffer;
-    switch (file_des){
+    switch (file_des)
+      {
         case STDIN_FILENO:
             while (counter > 1 && (c = input_getc()) != 0)
-            {
+              {
                 *buf = c;
                 buffer = buffer + 1;
                 counter = counter - 1;
-            }
+              }
             *buf = 0;
             read_size = buffer_size - counter;
             break;
@@ -512,21 +520,22 @@ read_handler(struct intr_frame *f)
             break;
         default:
             fds = get_file_from_fd(file_des);
-            if (fds != NULL){
+            if (fds != NULL)
+              {
                 read_size = file_read(fds, buffer, buffer_size);
-            }
+              }
             break;
 
-    }
-    sema_up(&file_sema);
+      }
+    sema_up (&file_sema);
     f->eax = read_size;
 }
 
 void
-open_handler(struct intr_frame *f)
+open_handler (struct intr_frame *f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
-  if (!is_valid_str(args[1]))
+  if (!is_valid_str (args[1]))
     {
       exit_process (-1);
       NOT_REACHED ();
@@ -548,7 +557,6 @@ open_handler(struct intr_frame *f)
       list_push_back (&current->open_files, &of->file_elem);
       f->eax = of->fd;
     }
-  
 }
 
 /* Returns a valid file descriptor not already allocated for this thread */
