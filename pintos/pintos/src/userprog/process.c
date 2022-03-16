@@ -81,7 +81,7 @@ process_execute (const char *file_name)
   child->has_parent = true;
   child->exit_code = -1;
   struct thread *current_thread = thread_current ();
-  list_push_back (&(current_thread->children), &(child->elem));
+  list_push_back (&(current_thread->children), &(child->child_elem));
 
   return tid;
 }
@@ -140,7 +140,7 @@ process_wait (tid_t child_tid UNUSED)
   /* Trying to find Child elem with thread ID = child_tid */
   for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children); e = list_next (e))
     {
-      struct child *child = list_entry (e, struct child, elem);
+      struct child *child = list_entry (e, struct child, child_elem);
       if (child->tid == child_tid)
         {
           sema_down (&child->wait_sem);
