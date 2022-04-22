@@ -11,8 +11,6 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-#include "userprog/syscall.h"
-
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -110,7 +108,7 @@ thread_start (void)
   /* Create the idle thread. */
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
-  thread_create ("idle", PRI_MIN, idle, &idle_started,NULL);
+  thread_create ("idle", PRI_MIN, idle, &idle_started);
 
   /* Start preemptive thread scheduling. */
   intr_enable ();
@@ -166,7 +164,7 @@ thread_print_stats (void)
    Priority scheduling is the goal of Problem 1-3. */
 tid_t
 thread_create (const char *name, int priority,
-               thread_func *function, void *aux,struct child *its_child)
+               thread_func *function, void *aux)
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
@@ -184,9 +182,6 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-
-  /* Set the thread's child struct */
-  t->its_child = its_child;
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -288,42 +283,6 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
-  struct thread *current_thread = thread_current ();
-  struct list_elem *e;
-  /* Close open files */
-  for (e = list_begin (&current_thread->open_files); e != list_end (&current_thread->open_files);
-       e = list_next (e))
-    {
-      struct open_file *open_file = list_entry (e, struct open_file, file_elem);
-      sema_down (&file_sema);
-      file_close (open_file->this_file);
-      sema_up (&file_sema);
-    }
-
-  /* Free open files */
-  while (! list_empty (&current_thread->open_files))
-    {
-      e = list_pop_front (&current_thread->open_files);
-      struct open_file *open_file = list_entry (e, struct open_file, file_elem);
-      free (open_file);
-    }
-
-  /* set NULL for parent of current thread's children */
-  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children);
-       e = list_next (e))
-    {
-      struct child *child = list_entry (e, struct child, child_elem);
-      child->has_parent = false;
-    }
-  while (! list_empty (&current_thread->children))
-    {
-      list_pop_front (&current_thread->children);
-    }
-  
-  /* Allow write to executable file of this process by closing the file */
-  sema_down (&file_sema);
-  file_close (current_thread->exec_file);
-  sema_up (&file_sema);
   process_exit ();
 #endif
 
@@ -505,10 +464,6 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-  #ifdef USERPROG
-    list_init (&t->children);
-    list_init (&t->open_files);
-  #endif
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -627,23 +582,3 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
-
-/* Returns the corresponding fd for given file 
-   Returns -1 if file cannot be found */
-int get_fd_from_file (struct file *file)
-{
-  struct thread *current = thread_current ();
-    struct list_elem *e;
-    for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
-         e = list_next (e))
-      {
-        struct open_file *of = list_entry (e, struct open_file, file_elem);
-        if (of->this_file == file)
-        {
-          return of->fd;
-        }
-      }
-
-    /* When reach here, fd cannot be found */
-    return -1;
-}

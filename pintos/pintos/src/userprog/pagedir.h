@@ -3,7 +3,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <stddef.h>
 
 uint32_t *pagedir_create (void);
 void pagedir_destroy (uint32_t *pd);
@@ -15,7 +14,5 @@ void pagedir_set_dirty (uint32_t *pd, const void *upage, bool dirty);
 bool pagedir_is_accessed (uint32_t *pd, const void *upage);
 void pagedir_set_accessed (uint32_t *pd, const void *upage, bool accessed);
 void pagedir_activate (uint32_t *pd);
-bool is_valid_ptr (uint8_t *uaddr, size_t size);
-bool is_valid_str (char*uaddr);
 
 #endif /* userprog/pagedir.h */
