@@ -24,6 +24,16 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* A heap queue implementation of ready list.
+   In this list, thread_node objects are inserted based on effective priority */
+static struct thread_node *ready_list_pq;
+
+/* A heap queue for storing threads sleeping for a specific number of ticks.
+   This heap queue is based on final_tick and is a min heap structure */
+static struct sleep_thread *sleep_pq;
+
+
+
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;

@@ -95,6 +95,9 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    /* Used for fixed priority scheduling purposes */
+    struct thread_node *its_node;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -103,6 +106,32 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+/* Thread_node struct is used in scheduling queues. This usually used as a max
+   heap queue based on effective_priority to implemented fixed priority
+   scheduling. */
+
+struct thread_node 
+  {
+    struct thread *its_thread; /* The thread for this thread_node */
+    int64_t effective_priority;
+    int64_t base_priority;
+    struct lock *locks_acquired_pq; /* List of locks acquired by this thread */
+    struct thread_node *left_child;
+    struct thread_node *right_child;
+  };
+
+/* This struct is used to put threads at sleep when calling timer_sleep function.
+   It maintains a min heap queue of final_tick and checks every time in schedule
+   function if a the thread should be waken up, if so, puts the thread into ready
+   list */
+struct sleep_thread
+  {
+    struct thread_node *its_thread;
+    int64_t final_tick; /* The tick at which the thread should be waken up */
+    struct sleep_thread *left_child;
+    struct sleep_thread *right_child;
+  }
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
