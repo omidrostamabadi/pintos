@@ -208,6 +208,13 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+  /* Allocate its thread_node */
+  t->its_node = malloc (sizeof (struct thread_node));
+  t->its_node->base_priority = t->priority;
+  t->its_node->effective_priority = t->priority;
+  t->its_node->its_thread = t;
+  t->its_node->locks_acquired_pq = NULL;
+
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -247,7 +254,9 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  struct thread_node *tn = t->its_node;
+  heap_push (ready_list_pq, tn, offsetof (struct thread_node, effective_priority));
+//  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -318,7 +327,9 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread)
-    list_push_back (&ready_list, &cur->elem);
+    //list_push_back (&ready_list, &cur->elem);
+    heap_push (ready_list_pq, cur->its_node,
+     offsetof (struct thread_node, effective_priority));
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -345,7 +356,20 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
+  enum intr_level old_level;
+  struct thread_node *tn = thread_current ()->its_node;
+  old_level = intr_disable ();
   thread_current ()->priority = new_priority;
+  if (tn->base_priority == tn->effective_priority)
+    { // The thread has not been donated
+      tn->base_priority = new_priority;
+      tn->effective_priority = new_priority;
+    }
+  else
+    { // The thread has been donated, do not change effective priority
+      tn->base_priority = new_priority;
+    }
+  intr_set_level (old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -500,10 +524,21 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void)
 {
-  if (list_empty (&ready_list))
+  // if (list_empty (&ready_list))
+  //   return idle_thread;
+  // else
+  //   return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  /* If there are no threads in ready_list_pq, return idle */
+  if (ready_list_pq == NULL)
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    {
+      /* Return highest priority thread */
+      struct thread_node *tn = heap_pop(ready_list_pq,
+       offsetof(struct thread_node, effective_priority));
+      return tn->its_thread;
+    }
+  
 }
 
 /* Completes a thread switch by activating the new thread's page
