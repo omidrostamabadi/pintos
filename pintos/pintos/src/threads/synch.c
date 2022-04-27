@@ -29,6 +29,7 @@
 #include "threads/synch.h"
 #include <stdio.h>
 #include <string.h>
+#include <priority_queue.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
@@ -113,8 +114,8 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (sema->waiters!=NULL)
-    thread_unblock (tnpq_pop_max (&sema->waiters));
+  if (sema->waiters_pq!=NULL)
+    thread_unblock (tnpq_pop_max (sema->waiters_pq));
   sema->value++;
   intr_set_level (old_level);
 }
@@ -195,7 +196,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
   if(lock->holder->its_node->effective_priority < thread_current ()->its_node->effective_priority){
-      lock->holder->its_node->effective_priority = thread_current ()->its_node->effective_priority
+      lock->holder->its_node->effective_priority = thread_current ()->its_node->effective_priority;
   }
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
@@ -235,14 +236,15 @@ lock_release (struct lock *lock)
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
-  if(!list_empty(&thread_current ()->locks_acquired)){
+  if(!list_empty(&thread_current ()->its_node->locks_acquired)){
       int64_t max_effective=-100;
-      for (e = list_begin (&thread_current ()->locks_acquired); e != list_end (&thread_current ()->locks_acquired);
+      struct list_elem *e;
+      for (e = list_begin (&thread_current ()->its_node->locks_acquired); e != list_end (&thread_current ()->its_node->locks_acquired);
            e = list_next (e))
       {
           struct lock *lock_aqu = list_entry (e, struct lock, lock_elem);
-          if(max_effective < tnpq_peek_max (lock_aqu->semaphore->waiters_pq)->effective_priority){
-            max_effective = tnpq_peek_max (lock_aqu->semaphore->waiters_pq)->effective_priority;
+          if(max_effective < tnpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority){
+            max_effective = tnpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority;
           }
       }
   }else{
@@ -261,12 +263,7 @@ lock_held_by_current_thread (const struct lock *lock)
   return lock->holder == thread_current ();
 }
 
-/* One semaphore in a list. */
-struct semaphore_elem
-  {
-    struct list_elem elem;              /* List element. */
-    struct semaphore semaphore;         /* This semaphore. */
-  };
+
 
 /* Initializes condition variable COND.  A condition variable
    allows one piece of code to signal a condition and cooperating
@@ -275,8 +272,8 @@ void
 cond_init (struct condition *cond)
 {
   ASSERT (cond != NULL);
+  cond->waiters_pq=NULL;
 
-  list_init (&cond->waiters);
 }
 
 /* Atomically releases LOCK and waits for COND to be signaled by
@@ -310,7 +307,8 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   sema_init (&waiter.semaphore, 0);
-  list_push_back (&cond->waiters, &waiter.elem);
+  waiter.effective_priority=thread_current ()->its_node->effective_priority;
+  swpq_insert(&cond->waiters_pq,&waiter);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
@@ -331,9 +329,10 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
-  if (!list_empty (&cond->waiters))
-    sema_up (&list_entry (list_pop_front (&cond->waiters),
-                          struct semaphore_elem, elem)->semaphore);
+  if (cond->waiters_pq!=NULL) {
+    struct semaphore_elem* elem=swpq_pop_max(cond->waiters_pq);
+    sema_up(&elem->semaphore);
+  }
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
@@ -348,6 +347,6 @@ cond_broadcast (struct condition *cond, struct lock *lock)
   ASSERT (cond != NULL);
   ASSERT (lock != NULL);
 
-  while (!list_empty (&cond->waiters))
+  while (&cond->waiters_pq!=NULL)
     cond_signal (cond, lock);
 }

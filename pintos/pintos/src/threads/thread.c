@@ -4,6 +4,7 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include <priority_queue.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -30,7 +31,7 @@ static struct thread_node *ready_list_pq;
 
 /* A heap queue for storing threads sleeping for a specific number of ticks.
    This heap queue is based on final_tick and is a min heap structure */
-static struct sleep_thread *sleep_pq;
+static struct thread_sleep *sleep_pq;
 
 
 
@@ -98,7 +99,7 @@ void
 thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
-
+  ready_list_pq=NULL;
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
@@ -208,12 +209,6 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  /* Allocate its thread_node */
-  t->its_node = malloc (sizeof (struct thread_node));
-  t->its_node->base_priority = t->priority;
-  t->its_node->effective_priority = t->priority;
-  t->its_node->its_thread = t;
-  t->its_node->locks_acquired_pq = NULL;
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -508,6 +503,12 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  /* Allocate its thread_node */
+  t->its_node = malloc (sizeof (struct thread_node));
+  t->its_node->base_priority = t->priority;
+  t->its_node->effective_priority = t->priority;
+  t->its_node->its_thread = t;
+  t->its_node->locks_acquired = NULL;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
