@@ -234,6 +234,7 @@ thread_block (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   thread_current ()->status = THREAD_BLOCKED;
+  //tnpq_delete (&ready_list_pq, thread_current ()->its_node);
   schedule ();
 }
 
@@ -255,7 +256,7 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   struct thread_node *tn = t->its_node;
-  heap_push (ready_list_pq, tn, offsetof (struct thread_node, effective_priority));
+  tnpq_insert (&ready_list_pq, tn);
 //  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
@@ -310,6 +311,9 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
+  /* Remove the node from priority queues */
+  tnpq_delete (&ready_list_pq, thread_current ()->its_node);
+  // Should the thread be removed from other priority queues??????
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -328,8 +332,7 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread)
     //list_push_back (&ready_list, &cur->elem);
-    heap_push (ready_list_pq, cur->its_node,
-     offsetof (struct thread_node, effective_priority));
+    tnpq_insert (&ready_list_pq, cur->its_node);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -359,6 +362,7 @@ thread_set_priority (int new_priority)
   enum intr_level old_level;
   struct thread_node *tn = thread_current ()->its_node;
   old_level = intr_disable ();
+  int64_t old_prioriy = tn->effective_priority;
   thread_current ()->priority = new_priority;
   if (tn->base_priority == tn->effective_priority)
     { // The thread has not been donated
@@ -368,6 +372,13 @@ thread_set_priority (int new_priority)
   else
     { // The thread has been donated, do not change effective priority
       tn->base_priority = new_priority;
+    }
+  /* Check if we are still highest priority thread */
+  if (tn->effective_priority < old_prioriy)
+    { // Decreased priority, check ready list
+      struct thread_node *max_tn = tnpq_peek_max (ready_list_pq);
+      if (max_tn != NULL && max_tn->effective_priority > tn->effective_priority)
+        thread_yield ();
     }
   intr_set_level (old_level);
 }
@@ -529,16 +540,13 @@ next_thread_to_run (void)
   // else
   //   return list_entry (list_pop_front (&ready_list), struct thread, elem);
   /* If there are no threads in ready_list_pq, return idle */
-  if (ready_list_pq == NULL)
+
+
+  /* Return highest priority thread */
+  struct thread_node *tn = tnpq_pop_max (ready_list_pq);
+  if (tn == NULL) // No thread ready to run
     return idle_thread;
-  else
-    {
-      /* Return highest priority thread */
-      struct thread_node *tn = heap_pop(ready_list_pq,
-       offsetof(struct thread_node, effective_priority));
-      return tn->its_thread;
-    }
-  
+  return tn->its_thread;
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -583,6 +591,7 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread)
     {
       ASSERT (prev != cur);
+      free (prev->its_node);
       palloc_free_page (prev);
     }
 }
