@@ -116,7 +116,7 @@ struct thread_node
     struct thread *its_thread; /* The thread for this thread_node */
     int64_t effective_priority;
     int64_t base_priority;
-    struct lock *locks_acquired_pq; /* List of locks acquired by this thread */
+    struct list *locks_acquired; /* List of locks acquired by this thread */
     struct thread_node *left_child;
     struct thread_node *right_child;
   };
