@@ -12,6 +12,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -31,7 +32,7 @@ struct thread *ready_list_pq;
 
 /* A heap queue for storing threads sleeping for a specific number of ticks.
    This heap queue is based on final_tick and is a min heap structure */
-static struct thread_sleep *sleep_pq;
+struct list sleep_pq;
 
 
 
@@ -103,6 +104,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_pq);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -637,6 +639,7 @@ static void
 schedule (void)
 {
   struct thread *cur = running_thread ();
+  wake_up_sleeping ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
 
@@ -647,6 +650,22 @@ schedule (void)
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
+}
+
+static void wake_up_sleeping ()
+{
+  struct list_elem *e;
+  int64_t current_tick = timer_ticks ();
+  for (e = list_begin (&sleep_pq); e != list_end (&sleep_pq);
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, sleep_elem);
+      if (current_tick >= t->final_tick)
+        {
+          thread_unblock (t);
+          list_remove (&t->sleep_elem);
+        }
+    }
 }
 
 /* Returns a tid to use for a new thread. */

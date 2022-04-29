@@ -100,6 +100,8 @@ struct thread
     struct list locks_acquired;
     struct thread *next;
     struct thread *sema_next;
+    struct list_elem sleep_elem;
+    int64_t final_tick;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -146,6 +148,8 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
+
+static void wake_up_sleeping ();
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
