@@ -51,6 +51,7 @@ sema_init (struct semaphore *sema, unsigned value)
 
   sema->value = value;
   sema->waiters_pq=NULL;
+  sema->its_lock = NULL;
 }
 
 /* Down or "P" operation on a semaphore.  Waits for SEMA's value
@@ -68,10 +69,26 @@ sema_down (struct semaphore *sema)
   ASSERT (sema != NULL);
   ASSERT (!intr_context ());
 
+  struct lock *lock = sema->its_lock;
+
   old_level = intr_disable ();
   while (sema->value == 0)
     {
-      tnpq_insert (&sema->waiters_pq, thread_current ());
+      if (tnpq_search (sema->waiters_pq, thread_current ()) == NULL)
+        tnpq_insert (&sema->waiters_pq, thread_current ());
+      if (lock && lock->holder != NULL)
+        {
+          if(lock->holder->effective_priority < thread_current ()->effective_priority){
+              lock->holder->effective_priority = thread_current ()->effective_priority;
+              tnpq_update (&ready_list_pq, lock->holder, lock->holder->effective_priority,
+              lock->holder->base_priority);
+              tnpq_update (&sema->waiters_pq, lock->holder, lock->holder->effective_priority,
+              lock->holder->base_priority);
+              /* TODO: Update sleep_thread_pq as well */
+          }
+        }
+      if (lock && lock->holder && lock->holder->status == THREAD_BLOCKED)
+        thread_unblock (lock->holder);
       thread_block ();
     }
   sema->value--;
@@ -184,6 +201,7 @@ lock_init (struct lock *lock)
 
   lock->holder = NULL;
   sema_init (&lock->semaphore, 1);
+  lock->semaphore.its_lock = lock;
 }
 
 /* Acquires LOCK, sleeping until it becomes available if
@@ -200,12 +218,12 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
-  if (lock->holder != NULL)
-    {
-      if(lock->holder->effective_priority < thread_current ()->effective_priority){
-          lock->holder->effective_priority = thread_current ()->effective_priority;
-      }
-    }
+  // if (lock->holder != NULL)
+  //   {
+  //     if(lock->holder->effective_priority < thread_current ()->effective_priority){
+  //         lock->holder->effective_priority = thread_current ()->effective_priority;
+  //     }
+  //   }
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
   list_push_back (&thread_current ()->locks_acquired, &lock->lock_elem);

@@ -25,6 +25,9 @@ struct thread *tnpq_insert (struct thread **root_ptr,
 struct thread *tnpq_delete (struct thread **root_ptr,
  struct thread *node);
 
+struct thread *tnpq_search (struct thread *root,
+struct thread *node);
+
 struct thread *tnpq_delete_min (struct thread **root_ptr);
 
 struct thread *tnpq_peek_max (struct thread *root);

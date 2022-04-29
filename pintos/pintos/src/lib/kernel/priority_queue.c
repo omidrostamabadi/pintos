@@ -250,12 +250,15 @@ struct thread *tnpq_pop_max (struct thread **root_ptr)
 struct thread *tnpq_update (struct thread **root_ptr,
  struct thread *node, int64_t effective_priority, int64_t base_priority)
 {
-  tnpq_delete (root_ptr, node);
-  node->effective_priority = effective_priority;
-  node->base_priority = base_priority;
-  // Update priority in struct thread as well
-  struct thread *new_node = tnpq_insert (root_ptr, node);
-  return new_node;
+  if (tnpq_delete (root_ptr, node))
+    {
+      node->effective_priority = effective_priority;
+      node->base_priority = base_priority;
+      // Update priority in struct thread as well
+      struct thread *new_node = tnpq_insert (root_ptr, node);
+      return new_node;
+    }
+  return NULL;
 }
 
 /* Functions for min priority queue with struct thread_sleep */
