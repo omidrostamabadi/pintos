@@ -133,7 +133,13 @@ sema_up (struct semaphore *sema)
   old_level = intr_disable ();
   // sema->value++;
   if (sema->waiters_pq!=NULL)
-    thread_unblock (snpq_pop_max (&sema->waiters_pq));
+    {
+      if (snpq_peek_max (sema->waiters_pq) != thread_current ())
+        thread_unblock (snpq_pop_max (&sema->waiters_pq));
+      else
+        snpq_pop_max (&sema->waiters_pq);
+    }
+    
   sema->value++;
   intr_set_level (old_level);
   if (ready_list_pq != NULL && thread_current () != idle_thread && thread_current ()->effective_priority < tnpq_peek_max (ready_list_pq)->effective_priority)
