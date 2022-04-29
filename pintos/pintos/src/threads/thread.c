@@ -394,6 +394,7 @@ thread_set_priority (int new_priority)
     { // The thread has been donated, do not change effective priority
       t->base_priority = new_priority;
     }
+  intr_set_level (old_level);
   /* Check if we are still highest priority thread */
   if (t->effective_priority < old_prioriy)
     { // Decreased priority, check ready list
@@ -401,7 +402,7 @@ thread_set_priority (int new_priority)
       if (max_t != NULL && max_t->effective_priority > t->effective_priority)
         thread_yield ();
     }
-  intr_set_level (old_level);
+  // intr_set_level (old_level);
 }
 
 /* Returns the current thread's base priority. */

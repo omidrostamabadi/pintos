@@ -35,7 +35,7 @@ bool lock_held_by_current_thread (const struct lock *);
 /* Condition variable. */
 struct condition
   {
-    struct smaphore_elem *waiters_pq;        /* List of waiting threads. */
+    struct list waiters;        /* List of waiting threads. */
   };
 
 void cond_init (struct condition *);
@@ -44,13 +44,11 @@ void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
 /* One semaphore in a heap queue. */
-struct semaphore_elem
-{
-    struct semaphore semaphore;         /* This semaphore. */
-    int64_t effective_priority;
-    struct semaphore_elem* left_child;
-    struct semaphore_elem* right_child;
-};
+// struct semaphore_elem
+// {
+//     struct semaphore semaphore;         /* This semaphore. */
+//     int effective_priority;
+// };
 
 /* Optimization barrier.
 

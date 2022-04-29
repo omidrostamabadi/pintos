@@ -64,10 +64,4 @@ struct thread_sleep *slpq_pop_min (struct thread_sleep **root_ptr);
 
 struct thread_sleep *slpq_update (struct thread_sleep **root_ptr,
  struct thread_sleep *node, int64_t new_tick);
-
-struct semaphore_elem *swpq_insert (struct semaphore_elem **root_ptr, struct semaphore_elem *node);
-struct semaphore_elem *swpq_pop_max (struct semaphore_elem **root_ptr);
-struct semaphore_elem *swpq_delete (struct semaphore_elem **root_ptr, struct semaphore_elem *node);
-struct semaphore_elem *swpq_delete_min (struct semaphore_elem **root_ptr);
-
 #endif
