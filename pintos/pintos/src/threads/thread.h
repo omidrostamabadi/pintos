@@ -99,6 +99,7 @@ struct thread
     int effective_priority;
     struct list locks_acquired;
     struct thread *next;
+    struct thread *sema_next;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

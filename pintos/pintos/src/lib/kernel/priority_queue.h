@@ -33,6 +33,21 @@ struct thread *tnpq_peek_max (struct thread *root);
 struct thread *tnpq_pop_max (struct thread **root_ptr);
 
 
+
+struct thread *snpq_insert (struct thread **root_ptr,
+ struct thread *node);
+
+struct thread *snpq_delete (struct thread **root_ptr,
+ struct thread *node);
+
+struct thread *snpq_search (struct thread *root,
+struct thread *node);
+
+struct thread *snpq_peek_max (struct thread *root);
+
+struct thread *snpq_pop_max (struct thread **root_ptr);
+
+
 /* Functions for min priority queue with struct thread_sleep */
 
 struct thread_sleep *slpq_insert (struct thread_sleep **root_ptr,

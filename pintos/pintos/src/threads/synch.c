@@ -74,8 +74,8 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0)
     {
-      if (tnpq_search (sema->waiters_pq, thread_current ()) == NULL)
-        tnpq_insert (&sema->waiters_pq, thread_current ());
+      if (snpq_search (sema->waiters_pq, thread_current ()) == NULL)
+        snpq_insert (&sema->waiters_pq, thread_current ());
       if (lock && lock->holder != NULL)
         {
           if(lock->holder->effective_priority < thread_current ()->effective_priority){
@@ -83,7 +83,10 @@ sema_down (struct semaphore *sema)
           }
         }
       if (lock && lock->holder && lock->holder->status == THREAD_BLOCKED)
-        thread_unblock (lock->holder);
+        {
+        //  snpq_delete (&sema->waiters_pq, lock->holder);
+          thread_unblock (lock->holder);
+        }
       thread_block ();
     }
   sema->value--;
@@ -130,7 +133,7 @@ sema_up (struct semaphore *sema)
   old_level = intr_disable ();
   // sema->value++;
   if (sema->waiters_pq!=NULL)
-    thread_unblock (tnpq_pop_max (&sema->waiters_pq));
+    thread_unblock (snpq_pop_max (&sema->waiters_pq));
   sema->value++;
   intr_set_level (old_level);
   if (ready_list_pq != NULL && thread_current () != idle_thread && thread_current ()->effective_priority < tnpq_peek_max (ready_list_pq)->effective_priority)
@@ -272,8 +275,8 @@ lock_release (struct lock *lock)
           struct lock *lock_aqu = list_entry (e, struct lock, lock_elem);
           if (lock_aqu->semaphore.waiters_pq != NULL)
             {
-              if(max_effective < tnpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority){
-                max_effective = tnpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority;
+              if(max_effective < snpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority){
+                max_effective = snpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority;
                 thread_current ()->effective_priority = max_effective;
               }
             }
