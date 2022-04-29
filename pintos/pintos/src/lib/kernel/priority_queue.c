@@ -4,11 +4,11 @@
 #include "priority_queue.h"
 
 /* Functions for max priority queue with struct thread_node */
-struct thread_node *
-tnpq_insert (struct thread_node **root_ptr,
- struct thread_node *node)
+struct thread *
+tnpq_insert (struct thread **root_ptr,
+ struct thread *node)
 {
-  struct thread_node *root = *root_ptr;
+  struct thread *root = *root_ptr;
   if(root == NULL) // Tree is empty
     {
         *root_ptr = node;
@@ -17,8 +17,8 @@ tnpq_insert (struct thread_node **root_ptr,
     }
   else
     {
-      struct thread_node *parent = root;
-      struct thread_node *tmp = root;
+      struct thread *parent = root;
+      struct thread *tmp = root;
       /* Find the place of node in the tree */
       while (tmp != NULL)
         {
@@ -46,14 +46,14 @@ tnpq_insert (struct thread_node **root_ptr,
     return root;
 }
 
-struct thread_node *tnpq_search (struct thread_node *root,
- struct thread_node *node)
+struct thread *tnpq_search (struct thread *root,
+ struct thread *node)
 {
   if (root == NULL)
     return NULL;
   
-  struct thread_node *parent;
-  struct thread_node *tmp = root;
+  struct thread *parent;
+  struct thread *tmp = root;
   /* Binary search */
   while (tmp != NULL)
     {
@@ -67,7 +67,7 @@ struct thread_node *tnpq_search (struct thread_node *root,
         }
       else
         {
-          if (node->its_thread == tmp->its_thread)
+          if (node == tmp)
             {
               return tmp;
             }
@@ -79,10 +79,10 @@ struct thread_node *tnpq_search (struct thread_node *root,
   return NULL; // Could not find the node
 }
 
-struct thread_node *tnpq_delete (struct thread_node **root_ptr,
- struct thread_node *node)
+struct thread *tnpq_delete (struct thread **root_ptr,
+ struct thread *node)
 {
-  struct thread_node *root = *root_ptr;
+  struct thread *root = *root_ptr;
 
   /* Special case of empty tree */
   if (root == NULL)
@@ -91,21 +91,26 @@ struct thread_node *tnpq_delete (struct thread_node **root_ptr,
   /* Special case of deleting root */
   if (node == root)
     {
-      if (root->right_child != NULL)
-        {
-          struct thread_node *successor = tnpq_delete_min (&root->right_child);
+      if (root->right_child != NULL && root->left_child != NULL)
+        { // With two children
+          struct thread *successor = tnpq_delete_min (&root->right_child);
           *root_ptr = successor;
           return root;
         }
-      else
-        {
+      else if (root->left_child != NULL)
+        { // One child
           *root_ptr = root->left_child;
+          return root;
+        }
+      else
+        { // One or no child
+          *root_ptr = root->right_child;
           return root;
         }
     }
   
-  struct thread_node *parent;
-  struct thread_node *tmp = root;
+  struct thread *parent;
+  struct thread *tmp = root;
 
   /* Binary search */
   while (tmp != NULL)
@@ -123,7 +128,7 @@ struct thread_node *tnpq_delete (struct thread_node **root_ptr,
         }
       else
         {
-          if (node->its_thread == tmp->its_thread)
+          if (node == tmp)
             {
               if (tmp->right_child == NULL && tmp->left_child == NULL)
                 { // Node with no children
@@ -138,9 +143,9 @@ struct thread_node *tnpq_delete (struct thread_node **root_ptr,
                       return tmp;
                     }
                 }
-              else if (tmp->right_child != NULL || tmp->left_child != NULL)
+              else if (tmp->right_child != NULL && tmp->left_child != NULL)
                 { // Node with two children
-                  struct thread_node *successor = tnpq_delete_min (&tmp->right_child);
+                  struct thread *successor = tnpq_delete_min (&tmp->right_child);
                   successor->left_child = tmp->left_child;
                   successor->right_child = tmp->right_child;
                   if (tmp->effective_priority < parent->effective_priority)
@@ -154,6 +159,32 @@ struct thread_node *tnpq_delete (struct thread_node **root_ptr,
                       return tmp;
                     }
                 }
+              else if (tmp->right_child != NULL)
+                { // Node with one child
+                  if (tmp->effective_priority < parent->effective_priority)
+                    {
+                      parent->left_child = tmp->right_child;
+                      return tmp;
+                    }
+                  else
+                    {
+                      parent->right_child = tmp->right_child;
+                      return tmp;
+                    }
+                }
+              else
+                {
+                  if (tmp->effective_priority < parent->effective_priority)
+                    {
+                      parent->left_child = tmp->left_child;
+                      return tmp;
+                    }
+                  else
+                    {
+                      parent->right_child = tmp->left_child;
+                      return tmp;
+                    }
+                }
             }
           /* If we reach here, there must be another duplicate with
               the same priority, so we go to the right subtree to find that */
@@ -164,13 +195,13 @@ struct thread_node *tnpq_delete (struct thread_node **root_ptr,
   return NULL; // Could not find the node
 }
 
-struct thread_node *tnpq_delete_min (struct thread_node **root_ptr)
+struct thread *tnpq_delete_min (struct thread **root_ptr)
 {
-  struct thread_node *root = *root_ptr;
+  struct thread *root = *root_ptr;
   if (root == NULL)
     return NULL;
-  struct thread_node *parent = root;
-  struct thread_node *tmp = root;
+  struct thread *parent = root;
+  struct thread *tmp = root;
   while (tmp->left_child != NULL)
     {
       parent = tmp;
@@ -187,38 +218,43 @@ struct thread_node *tnpq_delete_min (struct thread_node **root_ptr)
   return tmp;
 }
 
-struct thread_node *tnpq_peek_max (struct thread_node *root)
+struct thread *tnpq_peek_max (struct thread *root)
 {
   if (root == NULL)
     return NULL;
-  struct thread_node *tmp = root;
+  struct thread *tmp = root;
   while (tmp->right_child != NULL)
     tmp = tmp->right_child;
   return tmp;
 }
 
-struct thread_node *tnpq_pop_max (struct thread_node **root_ptr)
+struct thread *tnpq_pop_max (struct thread **root_ptr)
 {
-  struct thread_node *root = *root_ptr;
+  struct thread *root = *root_ptr;
   if (root == NULL)
     return NULL;
-  struct thread_node *tmp = root;
+  struct thread *tmp = root;
   while (tmp->right_child != NULL)
     {
       tmp = tmp->right_child;
     }
   tnpq_delete (root_ptr, tmp);
+  if (tmp != NULL)
+    {
+      tmp->left_child = NULL;
+      tmp->right_child = NULL;
+    }
   return tmp;
 }
 
-struct thread_node *tnpq_update (struct thread_node **root_ptr,
- struct thread_node *node, int64_t effective_priority, int64_t base_priority)
+struct thread *tnpq_update (struct thread **root_ptr,
+ struct thread *node, int64_t effective_priority, int64_t base_priority)
 {
   tnpq_delete (root_ptr, node);
   node->effective_priority = effective_priority;
   node->base_priority = base_priority;
   // Update priority in struct thread as well
-  struct thread_node *new_node = tnpq_insert (root_ptr, node);
+  struct thread *new_node = tnpq_insert (root_ptr, node);
   return new_node;
 }
 

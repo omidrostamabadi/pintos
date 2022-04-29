@@ -27,7 +27,7 @@ static struct list ready_list;
 
 /* A heap queue implementation of ready list.
    In this list, thread_node objects are inserted based on effective priority */
-static struct thread_node *ready_list_pq;
+static struct thread *ready_list_pq;
 
 /* A heap queue for storing threads sleeping for a specific number of ticks.
    This heap queue is based on final_tick and is a min heap structure */
@@ -99,7 +99,7 @@ void
 thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
-  ready_list_pq=NULL;
+  ready_list_pq = NULL;
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
@@ -108,6 +108,17 @@ thread_init (void)
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
+  // initial_thread->tid = allocate_tid ();
+
+  /* Allocate its thread_node */
+  //t->status = THREAD_RUNNING;
+  // initial_thread->its_node = malloc (sizeof (struct thread_node));
+  // //t->status = THREAD_BLOCKED;
+  // initial_thread->its_node->base_priority = initial_thread->priority;
+  // initial_thread->its_node->effective_priority = initial_thread->priority;
+  // initial_thread->its_node->its_thread = initial_thread;
+  list_init (&initial_thread->locks_acquired);
+
   initial_thread->tid = allocate_tid ();
 }
 
@@ -209,6 +220,15 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+  /* Allocate its thread_node */
+  // t->status = THREAD_RUNNING;
+  // t->its_node = malloc (sizeof (struct thread_node));
+  // t->status = THREAD_BLOCKED;
+  // t->its_node->base_priority = t->priority;
+  // t->its_node->effective_priority = t->priority;
+  // t->its_node->its_thread = t;
+  list_init (&t->locks_acquired);
+
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -250,10 +270,13 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  struct thread_node *tn = t->its_node;
-  tnpq_insert (&ready_list_pq, tn);
+  tnpq_insert (&ready_list_pq, t);
 //  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
+
+  /* Check if we are still highest priority thread */
+  if (ready_list_pq != NULL && thread_current ()->effective_priority < tnpq_peek_max (ready_list_pq)->effective_priority)
+    thread_yield ();
   intr_set_level (old_level);
 }
 
@@ -307,7 +330,7 @@ thread_exit (void)
   intr_disable ();
   list_remove (&thread_current()->allelem);
   /* Remove the node from priority queues */
-  tnpq_delete (&ready_list_pq, thread_current ()->its_node);
+//  tnpq_delete (&ready_list_pq, thread_current ()->its_node);
   // Should the thread be removed from other priority queues??????
   thread_current ()->status = THREAD_DYING;
   schedule ();
@@ -327,7 +350,7 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread)
     //list_push_back (&ready_list, &cur->elem);
-    tnpq_insert (&ready_list_pq, cur->its_node);
+    tnpq_insert (&ready_list_pq, cur);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -355,34 +378,34 @@ void
 thread_set_priority (int new_priority)
 {
   enum intr_level old_level;
-  struct thread_node *tn = thread_current ()->its_node;
+  struct thread *t = thread_current ();
   old_level = intr_disable ();
-  int64_t old_prioriy = tn->effective_priority;
-  thread_current ()->priority = new_priority;
-  if (tn->base_priority == tn->effective_priority)
+  int old_prioriy = t->effective_priority;
+  //thread_current ()->base_priority = new_priority;
+  if (t->base_priority == t->effective_priority)
     { // The thread has not been donated
-      tn->base_priority = new_priority;
-      tn->effective_priority = new_priority;
+      t->base_priority = new_priority;
+      t->effective_priority = new_priority;
     }
   else
     { // The thread has been donated, do not change effective priority
-      tn->base_priority = new_priority;
+      t->base_priority = new_priority;
     }
   /* Check if we are still highest priority thread */
-  if (tn->effective_priority < old_prioriy)
+  if (t->effective_priority < old_prioriy)
     { // Decreased priority, check ready list
-      struct thread_node *max_tn = tnpq_peek_max (ready_list_pq);
-      if (max_tn != NULL && max_tn->effective_priority > tn->effective_priority)
+      struct thread *max_t = tnpq_peek_max (ready_list_pq);
+      if (max_t != NULL && max_t->effective_priority > t->effective_priority)
         thread_yield ();
     }
   intr_set_level (old_level);
 }
 
-/* Returns the current thread's priority. */
+/* Returns the current thread's base priority. */
 int
 thread_get_priority (void)
 {
-  return thread_current ()->priority;
+  return thread_current ()->base_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -501,14 +524,16 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  t->base_priority = priority;
+  t->effective_priority = priority;
   t->magic = THREAD_MAGIC;
+
   /* Allocate its thread_node */
-  t->its_node = malloc (sizeof (struct thread_node));
-  t->its_node->base_priority = t->priority;
-  t->its_node->effective_priority = t->priority;
-  t->its_node->its_thread = t;
-  t->its_node->locks_acquired = NULL;
+  // t->its_node = malloc (sizeof (struct thread_node));
+  // t->its_node->base_priority = t->priority;
+  // t->its_node->effective_priority = t->priority;
+  // t->its_node->its_thread = t;
+  // t->its_node->locks_acquired = NULL;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -544,10 +569,10 @@ next_thread_to_run (void)
 
 
   /* Return highest priority thread */
-  struct thread_node *tn = tnpq_pop_max (ready_list_pq);
-  if (tn == NULL) // No thread ready to run
+  struct thread *t = tnpq_pop_max (&ready_list_pq);
+  if (t == NULL) // No thread ready to run
     return idle_thread;
-  return tn->its_thread;
+  return t;
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -592,7 +617,7 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread)
     {
       ASSERT (prev != cur);
-      free (prev->its_node);
+    //  free (prev->its_node);
       palloc_free_page (prev);
     }
 }

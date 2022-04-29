@@ -69,7 +69,7 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0)
     {
-      tnpq_insert (&sema->waiters_pq, thread_current ()->its_node);
+      tnpq_insert (&sema->waiters_pq, thread_current ());
       thread_block ();
     }
   sema->value--;
@@ -114,9 +114,10 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (sema->waiters_pq!=NULL)
-    thread_unblock (tnpq_pop_max (sema->waiters_pq));
   sema->value++;
+  if (sema->waiters_pq!=NULL)
+    thread_unblock (tnpq_pop_max (&sema->waiters_pq));
+  // sema->value++;
   intr_set_level (old_level);
 }
 
@@ -195,12 +196,15 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
-  if(lock->holder->its_node->effective_priority < thread_current ()->its_node->effective_priority){
-      lock->holder->its_node->effective_priority = thread_current ()->its_node->effective_priority;
-  }
+  if (lock->holder != NULL)
+    {
+      if(lock->holder->effective_priority < thread_current ()->effective_priority){
+          lock->holder->effective_priority = thread_current ()->effective_priority;
+      }
+    }
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
-  list_push_back (&thread_current ()->its_node->locks_acquired, &lock->lock_elem);
+  list_push_back (&thread_current ()->locks_acquired, &lock->lock_elem);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -219,7 +223,11 @@ lock_try_acquire (struct lock *lock)
 
   success = sema_try_down (&lock->semaphore);
   if (success)
-    lock->holder = thread_current ();
+    {
+      lock->holder = thread_current ();
+      list_push_back (&thread_current ()->locks_acquired, &lock->lock_elem);
+    }
+    
   return success;
 }
 
@@ -234,21 +242,27 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  list_remove (&lock->lock_elem);
+  lock->lock_elem.next = lock->lock_elem.prev = NULL;
   lock->holder = NULL;
   sema_up (&lock->semaphore);
-  if(!list_empty(&thread_current ()->its_node->locks_acquired)){
-      int64_t max_effective=-100;
+  if(!list_empty(&thread_current ()->locks_acquired)){
+      int max_effective=-100;
       struct list_elem *e;
-      for (e = list_begin (&thread_current ()->its_node->locks_acquired); e != list_end (&thread_current ()->its_node->locks_acquired);
+      for (e = list_begin (&thread_current ()->locks_acquired); e != list_end (&thread_current ()->locks_acquired);
            e = list_next (e))
       {
           struct lock *lock_aqu = list_entry (e, struct lock, lock_elem);
-          if(max_effective < tnpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority){
-            max_effective = tnpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority;
-          }
+          if (lock_aqu->semaphore.waiters_pq != NULL)
+            {
+              if(max_effective < tnpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority){
+                max_effective = tnpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority;
+              }
+            }
+          
       }
   }else{
-    thread_current ()->its_node->effective_priority = thread_current ()->its_node->base_priority;
+    thread_current ()->effective_priority = thread_current ()->base_priority;
   }
 }
 
@@ -307,7 +321,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   sema_init (&waiter.semaphore, 0);
-  waiter.effective_priority=thread_current ()->its_node->effective_priority;
+  waiter.effective_priority=thread_current ()->effective_priority;
   swpq_insert(&cond->waiters_pq,&waiter);
   lock_release (lock);
   sema_down (&waiter.semaphore);
@@ -330,7 +344,7 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock_held_by_current_thread (lock));
 
   if (cond->waiters_pq!=NULL) {
-    struct semaphore_elem* elem=swpq_pop_max(cond->waiters_pq);
+    struct semaphore_elem* elem=swpq_pop_max(&cond->waiters_pq);
     sema_up(&elem->semaphore);
   }
 }

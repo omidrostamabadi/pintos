@@ -4,20 +4,35 @@
 
 /* Functions for max priority queue with struct thread_node */
 
-struct thread_node *tnpq_insert (struct thread_node **root_ptr,
- struct thread_node *node);
+// struct thread_node *tnpq_insert (struct thread_node **root_ptr,
+//  struct thread_node *node);
 
-struct thread_node *tnpq_delete (struct thread_node **root_ptr,
- struct thread_node *node);
+// struct thread_node *tnpq_delete (struct thread_node **root_ptr,
+//  struct thread_node *node);
 
-struct thread_node *tnpq_delete_min (struct thread_node **root_ptr);
+// struct thread_node *tnpq_delete_min (struct thread_node **root_ptr);
 
-struct thread_node *tnpq_peek_max (struct thread_node *root);
+// struct thread_node *tnpq_peek_max (struct thread_node *root);
 
-struct thread_node *tnpq_pop_max (struct thread_node **root_ptr);
+// struct thread_node *tnpq_pop_max (struct thread_node **root_ptr);
 
-struct thread_node *tnpq_update (struct thread_node **root_ptr,
- struct thread_node *node, int64_t effective_priority, int64_t base_priority);
+// struct thread_node *tnpq_update (struct thread_node **root_ptr,
+//  struct thread_node *node, int64_t effective_priority, int64_t base_priority);
+
+struct thread *tnpq_insert (struct thread **root_ptr,
+ struct thread *node);
+
+struct thread *tnpq_delete (struct thread **root_ptr,
+ struct thread *node);
+
+struct thread *tnpq_delete_min (struct thread **root_ptr);
+
+struct thread *tnpq_peek_max (struct thread *root);
+
+struct thread *tnpq_pop_max (struct thread **root_ptr);
+
+struct thread *tnpq_update (struct thread **root_ptr,
+ struct thread *node, int64_t effective_priority, int64_t base_priority);
 
 
 /* Functions for min priority queue with struct thread_sleep */

@@ -89,14 +89,17 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Priority. */
+    int base_priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
     /* Used for fixed priority scheduling purposes */
-    struct thread_node *its_node;
+    int effective_priority;
+    struct list locks_acquired;
+    struct thread *left_child;
+    struct thread *right_child;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -107,19 +110,6 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
   };
 
-/* Thread_node struct is used in scheduling queues. This usually used as a max
-   heap queue based on effective_priority to implemented fixed priority
-   scheduling. */
-
-struct thread_node 
-  {
-    struct thread *its_thread; /* The thread for this thread_node */
-    int64_t effective_priority;
-    int64_t base_priority;
-    struct list *locks_acquired; /* List of locks acquired by this thread */
-    struct thread_node *left_child;
-    struct thread_node *right_child;
-  };
 
 /* This struct is used to put threads at sleep when calling timer_sleep function.
    It maintains a min heap queue of final_tick and checks every time in schedule
