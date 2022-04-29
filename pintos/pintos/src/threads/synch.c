@@ -33,6 +33,8 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+extern struct thread *ready_list_pq;
+extern struct thread *idle_thread;
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -114,11 +116,13 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  sema->value++;
+  // sema->value++;
   if (sema->waiters_pq!=NULL)
     thread_unblock (tnpq_pop_max (&sema->waiters_pq));
-  // sema->value++;
+  sema->value++;
   intr_set_level (old_level);
+  if (ready_list_pq != NULL && thread_current () != idle_thread && thread_current ()->effective_priority < tnpq_peek_max (ready_list_pq)->effective_priority)
+    thread_yield ();
 }
 
 static void sema_test_helper (void *sema_);
@@ -243,9 +247,9 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   list_remove (&lock->lock_elem);
-  lock->lock_elem.next = lock->lock_elem.prev = NULL;
+  // lock->lock_elem.next = lock->lock_elem.prev = NULL;
   lock->holder = NULL;
-  sema_up (&lock->semaphore);
+  // sema_up (&lock->semaphore);
   if(!list_empty(&thread_current ()->locks_acquired)){
       int max_effective=-100;
       struct list_elem *e;
@@ -257,6 +261,7 @@ lock_release (struct lock *lock)
             {
               if(max_effective < tnpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority){
                 max_effective = tnpq_peek_max (lock_aqu->semaphore.waiters_pq)->effective_priority;
+                thread_current ()->effective_priority = max_effective;
               }
             }
           
@@ -264,6 +269,7 @@ lock_release (struct lock *lock)
   }else{
     thread_current ()->effective_priority = thread_current ()->base_priority;
   }
+  sema_up (&lock->semaphore);
 }
 
 /* Returns true if the current thread holds LOCK, false

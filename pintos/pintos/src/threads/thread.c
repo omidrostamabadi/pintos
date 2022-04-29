@@ -27,7 +27,7 @@ static struct list ready_list;
 
 /* A heap queue implementation of ready list.
    In this list, thread_node objects are inserted based on effective priority */
-static struct thread *ready_list_pq;
+struct thread *ready_list_pq;
 
 /* A heap queue for storing threads sleeping for a specific number of ticks.
    This heap queue is based on final_tick and is a min heap structure */
@@ -40,7 +40,7 @@ static struct thread_sleep *sleep_pq;
 static struct list all_list;
 
 /* Idle thread. */
-static struct thread *idle_thread;
+struct thread *idle_thread;
 
 /* Initial thread, the thread running init.c:main(). */
 static struct thread *initial_thread;
@@ -233,6 +233,9 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  if (ready_list_pq != NULL && thread_current () != idle_thread && thread_current ()->effective_priority < tnpq_peek_max (ready_list_pq)->effective_priority)
+    thread_yield ();
+
   return tid;
 }
 
@@ -275,8 +278,8 @@ thread_unblock (struct thread *t)
   t->status = THREAD_READY;
 
   /* Check if we are still highest priority thread */
-  if (ready_list_pq != NULL && thread_current ()->effective_priority < tnpq_peek_max (ready_list_pq)->effective_priority)
-    thread_yield ();
+  // if (ready_list_pq != NULL && thread_current ()->effective_priority < tnpq_peek_max (ready_list_pq)->effective_priority)
+  //   thread_yield ();
   intr_set_level (old_level);
 }
 
@@ -405,7 +408,7 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void)
 {
-  return thread_current ()->base_priority;
+  return thread_current ()->effective_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
