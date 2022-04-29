@@ -80,11 +80,6 @@ sema_down (struct semaphore *sema)
         {
           if(lock->holder->effective_priority < thread_current ()->effective_priority){
               lock->holder->effective_priority = thread_current ()->effective_priority;
-              tnpq_update (&ready_list_pq, lock->holder, lock->holder->effective_priority,
-              lock->holder->base_priority);
-              tnpq_update (&sema->waiters_pq, lock->holder, lock->holder->effective_priority,
-              lock->holder->base_priority);
-              /* TODO: Update sleep_thread_pq as well */
           }
         }
       if (lock && lock->holder && lock->holder->status == THREAD_BLOCKED)

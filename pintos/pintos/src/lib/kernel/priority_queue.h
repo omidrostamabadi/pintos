@@ -28,14 +28,9 @@ struct thread *tnpq_delete (struct thread **root_ptr,
 struct thread *tnpq_search (struct thread *root,
 struct thread *node);
 
-struct thread *tnpq_delete_min (struct thread **root_ptr);
-
 struct thread *tnpq_peek_max (struct thread *root);
 
 struct thread *tnpq_pop_max (struct thread **root_ptr);
-
-struct thread *tnpq_update (struct thread **root_ptr,
- struct thread *node, int64_t effective_priority, int64_t base_priority);
 
 
 /* Functions for min priority queue with struct thread_sleep */

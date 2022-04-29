@@ -98,8 +98,7 @@ struct thread
     /* Used for fixed priority scheduling purposes */
     int effective_priority;
     struct list locks_acquired;
-    struct thread *left_child;
-    struct thread *right_child;
+    struct thread *next;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
