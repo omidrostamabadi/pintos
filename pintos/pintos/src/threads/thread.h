@@ -113,18 +113,6 @@ struct thread
   };
 
 
-/* This struct is used to put threads at sleep when calling timer_sleep function.
-   It maintains a min heap queue of final_tick and checks every time in schedule
-   function if a the thread should be waken up, if so, puts the thread into ready
-   list */
-struct thread_sleep
-  {
-    struct thread_node *its_thread;
-    int64_t final_tick; /* The tick at which the thread should be waken up */
-    struct thread_sleep *left_child;
-    struct thread_sleep *right_child;
-  };
-
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */

@@ -104,21 +104,14 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  /* First initializing of sleep threads list */
   list_init (&sleep_pq);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
-  // initial_thread->tid = allocate_tid ();
 
-  /* Allocate its thread_node */
-  //t->status = THREAD_RUNNING;
-  // initial_thread->its_node = malloc (sizeof (struct thread_node));
-  // //t->status = THREAD_BLOCKED;
-  // initial_thread->its_node->base_priority = initial_thread->priority;
-  // initial_thread->its_node->effective_priority = initial_thread->priority;
-  // initial_thread->its_node->its_thread = initial_thread;
   list_init (&initial_thread->locks_acquired);
 
   initial_thread->tid = allocate_tid ();
@@ -222,19 +215,15 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  /* Allocate its thread_node */
-  // t->status = THREAD_RUNNING;
-  // t->its_node = malloc (sizeof (struct thread_node));
-  // t->status = THREAD_BLOCKED;
-  // t->its_node->base_priority = t->priority;
-  // t->its_node->effective_priority = t->priority;
-  // t->its_node->its_thread = t;
+
   list_init (&t->locks_acquired);
 
 
   /* Add to run queue. */
   thread_unblock (t);
 
+  /* After unblocking a thread check If the current thread is not the highest
+   * ready or run priority thread anymore then we should call thread_yield() immediately */
   if (ready_list_pq != NULL && thread_current () != idle_thread && thread_current ()->effective_priority < tnpq_peek_max (ready_list_pq)->effective_priority)
     thread_yield ();
 
@@ -254,7 +243,6 @@ thread_block (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   thread_current ()->status = THREAD_BLOCKED;
-  //tnpq_delete (&ready_list_pq, thread_current ()->its_node);
   schedule ();
 }
 
@@ -275,13 +263,9 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
+  /* Add this thread to the ready_list_pq */
   tnpq_insert (&ready_list_pq, t);
-//  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
-
-  /* Check if we are still highest priority thread */
-  // if (ready_list_pq != NULL && thread_current ()->effective_priority < tnpq_peek_max (ready_list_pq)->effective_priority)
-  //   thread_yield ();
   intr_set_level (old_level);
 }
 
@@ -334,9 +318,6 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
-  /* Remove the node from priority queues */
-//  tnpq_delete (&ready_list_pq, thread_current ()->its_node);
-  // Should the thread be removed from other priority queues??????
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -353,8 +334,8 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
+  /* Idle thread should not insert into ready_list_pq */
   if (cur != idle_thread)
-    //list_push_back (&ready_list, &cur->elem);
     tnpq_insert (&ready_list_pq, cur);
   cur->status = THREAD_READY;
   schedule ();
@@ -386,7 +367,6 @@ thread_set_priority (int new_priority)
   struct thread *t = thread_current ();
   old_level = intr_disable ();
   int old_prioriy = t->effective_priority;
-  //thread_current ()->base_priority = new_priority;
   if (t->base_priority == t->effective_priority)
     { // The thread has not been donated
       t->base_priority = new_priority;
@@ -404,7 +384,6 @@ thread_set_priority (int new_priority)
       if (max_t != NULL && max_t->effective_priority > t->effective_priority)
         thread_yield ();
     }
-  // intr_set_level (old_level);
 }
 
 /* Returns the current thread's base priority. */
@@ -530,16 +509,11 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
+  /* Initialize the base and effective priority with thread priority firstly */
   t->base_priority = priority;
   t->effective_priority = priority;
   t->magic = THREAD_MAGIC;
 
-  /* Allocate its thread_node */
-  // t->its_node = malloc (sizeof (struct thread_node));
-  // t->its_node->base_priority = t->priority;
-  // t->its_node->effective_priority = t->priority;
-  // t->its_node->its_thread = t;
-  // t->its_node->locks_acquired = NULL;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -567,12 +541,6 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void)
 {
-  // if (list_empty (&ready_list))
-  //   return idle_thread;
-  // else
-  //   return list_entry (list_pop_front (&ready_list), struct thread, elem);
-  /* If there are no threads in ready_list_pq, return idle */
-
 
   /* Return highest priority thread */
   struct thread *t = tnpq_pop_max (&ready_list_pq);
@@ -623,7 +591,6 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread)
     {
       ASSERT (prev != cur);
-    //  free (prev->its_node);
       palloc_free_page (prev);
     }
 }
@@ -639,6 +606,7 @@ static void
 schedule (void)
 {
   struct thread *cur = running_thread ();
+  /* Check and wake up a asleep thread if it's time for waking up it */
   wake_up_sleeping ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
@@ -656,12 +624,15 @@ static void wake_up_sleeping ()
 {
   struct list_elem *e;
   int64_t current_tick = timer_ticks ();
+  /* Find the sleeped thread with earliest waking up time and
+   * check if current time is overed by its waking uo time then add the slept thread to ready_list_pq */
   for (e = list_begin (&sleep_pq); e != list_end (&sleep_pq);
        e = list_next (e))
     {
       struct thread *t = list_entry (e, struct thread, sleep_elem);
       if (current_tick >= t->final_tick)
         {
+          /* Unblock and remove the thread from slept threads */
           thread_unblock (t);
           list_remove (&t->sleep_elem);
         }

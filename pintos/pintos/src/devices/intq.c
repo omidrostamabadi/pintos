@@ -109,6 +109,7 @@ signal (struct intq *q UNUSED, struct thread **waiter)
   if (*waiter != NULL)
     {
       thread_unblock (*waiter);
+      /* To run the scheduler after interrupt finishing */
       intr_yield_on_return ();
       *waiter = NULL;
     }

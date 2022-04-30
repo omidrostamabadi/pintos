@@ -96,8 +96,10 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
   if (ticks > 0)
     {
+      /* Calculate the waking up tick time and then add this thread to the sleep threads list*/
       thread_current ()->final_tick = start + ticks;
       list_push_back (&sleep_pq, &thread_current ()->sleep_elem);
+      /* Block current thread and wait for awaking with scheduler at the suitable time */
       thread_block ();
     }
   intr_set_level (old_level);
