@@ -4,7 +4,6 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
-#include <priority_queue.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -12,7 +11,8 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-#include "devices/timer.h"
+#include "userprog/syscall.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -26,22 +26,12 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
-/* A heap queue implementation of ready list.
-   In this list, thread_node objects are inserted based on effective priority */
-struct thread *ready_list_pq;
-
-/* A heap queue for storing threads sleeping for a specific number of ticks.
-   This heap queue is based on final_tick and is a min heap structure */
-struct list sleep_pq;
-
-
-
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
 /* Idle thread. */
-struct thread *idle_thread;
+static struct thread *idle_thread;
 
 /* Initial thread, the thread running init.c:main(). */
 static struct thread *initial_thread;
@@ -100,20 +90,15 @@ void
 thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
-  ready_list_pq = NULL;
+
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-  /* First initializing of sleep threads list */
-  list_init (&sleep_pq);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
-
-  list_init (&initial_thread->locks_acquired);
-
   initial_thread->tid = allocate_tid ();
 }
 
@@ -125,7 +110,7 @@ thread_start (void)
   /* Create the idle thread. */
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
-  thread_create ("idle", PRI_MIN, idle, &idle_started);
+  thread_create ("idle", PRI_MIN, idle, &idle_started,NULL);
 
   /* Start preemptive thread scheduling. */
   intr_enable ();
@@ -181,7 +166,7 @@ thread_print_stats (void)
    Priority scheduling is the goal of Problem 1-3. */
 tid_t
 thread_create (const char *name, int priority,
-               thread_func *function, void *aux)
+               thread_func *function, void *aux,struct child *its_child)
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
@@ -200,6 +185,9 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
+  /* Set the thread's child struct */
+  t->its_child = its_child;
+
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
@@ -215,17 +203,8 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-
-  list_init (&t->locks_acquired);
-
-
   /* Add to run queue. */
   thread_unblock (t);
-
-  /* After unblocking a thread check If the current thread is not the highest
-   * ready or run priority thread anymore then we should call thread_yield() immediately */
-  if (ready_list_pq != NULL && thread_current () != idle_thread && thread_current ()->effective_priority < tnpq_peek_max (ready_list_pq)->effective_priority)
-    thread_yield ();
 
   return tid;
 }
@@ -263,8 +242,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  /* Add this thread to the ready_list_pq */
-  tnpq_insert (&ready_list_pq, t);
+  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -310,6 +288,42 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
+  struct thread *current_thread = thread_current ();
+  struct list_elem *e;
+  /* Close open files */
+  for (e = list_begin (&current_thread->open_files); e != list_end (&current_thread->open_files);
+       e = list_next (e))
+    {
+      struct open_file *open_file = list_entry (e, struct open_file, file_elem);
+      sema_down (&file_sema);
+      file_close (open_file->this_file);
+      sema_up (&file_sema);
+    }
+
+  /* Free open files */
+  while (! list_empty (&current_thread->open_files))
+    {
+      e = list_pop_front (&current_thread->open_files);
+      struct open_file *open_file = list_entry (e, struct open_file, file_elem);
+      free (open_file);
+    }
+
+  /* set NULL for parent of current thread's children */
+  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children);
+       e = list_next (e))
+    {
+      struct child *child = list_entry (e, struct child, child_elem);
+      child->has_parent = false;
+    }
+  while (! list_empty (&current_thread->children))
+    {
+      list_pop_front (&current_thread->children);
+    }
+  
+  /* Allow write to executable file of this process by closing the file */
+  sema_down (&file_sema);
+  file_close (current_thread->exec_file);
+  sema_up (&file_sema);
   process_exit ();
 #endif
 
@@ -334,9 +348,8 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  /* Idle thread should not insert into ready_list_pq */
   if (cur != idle_thread)
-    tnpq_insert (&ready_list_pq, cur);
+    list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -363,34 +376,14 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  enum intr_level old_level;
-  struct thread *t = thread_current ();
-  old_level = intr_disable ();
-  int old_prioriy = t->effective_priority;
-  if (t->base_priority == t->effective_priority)
-    { // The thread has not been donated
-      t->base_priority = new_priority;
-      t->effective_priority = new_priority;
-    }
-  else
-    { // The thread has been donated, do not change effective priority
-      t->base_priority = new_priority;
-    }
-  intr_set_level (old_level);
-  /* Check if we are still highest priority thread */
-  if (t->effective_priority < old_prioriy)
-    { // Decreased priority, check ready list
-      struct thread *max_t = tnpq_peek_max (ready_list_pq);
-      if (max_t != NULL && max_t->effective_priority > t->effective_priority)
-        thread_yield ();
-    }
+  thread_current ()->priority = new_priority;
 }
 
-/* Returns the current thread's base priority. */
+/* Returns the current thread's priority. */
 int
 thread_get_priority (void)
 {
-  return thread_current ()->effective_priority;
+  return thread_current ()->priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -509,12 +502,13 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  /* Initialize the base and effective priority with thread priority firstly */
-  t->base_priority = priority;
-  t->effective_priority = priority;
+  t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-
+  #ifdef USERPROG
+    list_init (&t->children);
+    list_init (&t->open_files);
+  #endif
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -541,12 +535,10 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void)
 {
-
-  /* Return highest priority thread */
-  struct thread *t = tnpq_pop_max (&ready_list_pq);
-  if (t == NULL) // No thread ready to run
+  if (list_empty (&ready_list))
     return idle_thread;
-  return t;
+  else
+    return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -606,8 +598,6 @@ static void
 schedule (void)
 {
   struct thread *cur = running_thread ();
-  /* Check and wake up a asleep thread if it's time for waking up it */
-  wake_up_sleeping ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
 
@@ -618,25 +608,6 @@ schedule (void)
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
-}
-
-static void wake_up_sleeping ()
-{
-  struct list_elem *e;
-  int64_t current_tick = timer_ticks ();
-  /* Find the sleeped thread with earliest waking up time and
-   * check if current time is overed by its waking uo time then add the slept thread to ready_list_pq */
-  for (e = list_begin (&sleep_pq); e != list_end (&sleep_pq);
-       e = list_next (e))
-    {
-      struct thread *t = list_entry (e, struct thread, sleep_elem);
-      if (current_tick >= t->final_tick)
-        {
-          /* Unblock and remove the thread from slept threads */
-          thread_unblock (t);
-          list_remove (&t->sleep_elem);
-        }
-    }
 }
 
 /* Returns a tid to use for a new thread. */
@@ -656,3 +627,23 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/* Returns the corresponding fd for given file 
+   Returns -1 if file cannot be found */
+int get_fd_from_file (struct file *file)
+{
+  struct thread *current = thread_current ();
+    struct list_elem *e;
+    for (e = list_begin (&current->open_files); e != list_end (&current->open_files);
+         e = list_next (e))
+      {
+        struct open_file *of = list_entry (e, struct open_file, file_elem);
+        if (of->this_file == file)
+        {
+          return of->fd;
+        }
+      }
+
+    /* When reach here, fd cannot be found */
+    return -1;
+}

@@ -18,8 +18,8 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/syscall.h"
 
-static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -33,7 +33,6 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
-  sema_init (&temporary, 0);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -41,10 +40,47 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  /* file_name contains arguments as well
+     should separate the file name for debugging purposes
+     when thread exits, file_name is printed as the name of the test
+     the thread was executing, so it should not contain args */
+  char *first_space = strchr(file_name, ' ');
+  int file_name_size;
+  char *file_name_no_args;
+  if(first_space != NULL) // If the program contains any args
+    {
+      /* Allocate a temporary file_name */
+      file_name_size = first_space - file_name + 1;
+      file_name_no_args = (char*) malloc(file_name_size + 1);
+      strlcpy(file_name_no_args, file_name, file_name_size);
+      file_name_no_args[file_name_size] = '\0';
+    }
+  else
+    {
+      file_name_no_args = file_name;
+    }
+
+  struct child *child = malloc (sizeof (struct child));
+  if (child == NULL)
+    return TID_ERROR;
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name_no_args, PRI_DEFAULT, start_process, fn_copy, child);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
+
+  if (first_space != NULL)
+    free(file_name_no_args);
+
+  child->tid = tid;
+  sema_init (&(child->wait_sem), 0);
+  sema_init (&(child->load_sem), 0);
+  child->loaded_status = false;
+  child->has_parent = true;
+  child->exit_code = -1;
+  struct thread *current_thread = thread_current ();
+  list_push_back (&(current_thread->children), &(child->child_elem));
+
   return tid;
 }
 
@@ -66,9 +102,14 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success)
-    thread_exit ();
-
+  if (!success){
+    struct thread *current_thread = thread_current ();
+    sema_up (&current_thread->its_child->load_sem);
+    thread_exit();
+  }
+  struct thread *current_thread = thread_current ();
+  current_thread->its_child->loaded_status=true;
+  sema_up (&current_thread->its_child->load_sem);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -91,8 +132,24 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  sema_down (&temporary);
-  return 0;
+  struct thread *current_thread = thread_current ();
+  struct list_elem *e;
+  /* Trying to find Child elem with thread ID = child_tid */
+  for (e = list_begin (&current_thread->children); e != list_end (&current_thread->children);
+       e = list_next (e))
+    {
+      struct child *child = list_entry (e, struct child, child_elem);
+      if (child->tid == child_tid)
+        {
+          sema_down (&child->wait_sem);
+          int exit_code = child->exit_code;
+          list_remove (e);
+          free (child);
+          return exit_code;
+        }
+    }
+
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -101,6 +158,8 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+  struct child *its_child = cur->its_child;
+  struct list_elem *e;
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -118,7 +177,9 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  sema_up (&temporary);
+   sema_up (&its_child->wait_sem);
+    if (cur->its_child->has_parent == false)
+      free(cur->its_child);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -200,7 +261,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, const char **, int);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -226,13 +287,37 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+  /* Parse arguments (space separated) */
+  char **argv = (char**) malloc(MAX_ARGS_SIZE * sizeof(char*));
+  char *tmp_file_name; // Cannot modify file_name (const), so need to make a copy
+  size_t file_name_size = strlen(file_name) + 1;
+  tmp_file_name = (char*) malloc(file_name_size);
+  strlcpy(tmp_file_name, file_name, file_name_size);
+  char *save_ptr, *token;
+  int argc = 0;
+  for (token = strtok_r(tmp_file_name, " ", &save_ptr); token != NULL;
+       token = strtok_r(NULL, " ", &save_ptr))
+   {
+     argv[argc] = token;
+     argc++;
+   }
+  argv[argc] = NULL;
+
   /* Open executable file. */
-  file = filesys_open (file_name);
+  file = filesys_open (argv[0]); // argv[0] contains file name
   if (file == NULL)
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", argv[0]);
       goto done;
     }
+  
+  #ifdef USERPROG
+    /* Deny writing to the file */
+    sema_down (&file_sema);
+    file_deny_write (file);
+    sema_up (&file_sema);
+    thread_current ()->exec_file = file;
+  #endif
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -243,7 +328,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024)
     {
-      printf ("load: %s: error loading executable\n", file_name);
+      printf ("load: %s: error loading executable\n", argv[0]);
       goto done;
     }
 
@@ -306,8 +391,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
         }
     }
 
-  /* Set up stack. */
-  if (!setup_stack (esp))
+  /* Set up stack and pass arguments to the program. */
+  if (!setup_stack (esp, argv, argc))
     goto done;
 
   /* Start address. */
@@ -317,7 +402,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  free(tmp_file_name);
+  free(argv);
   return success;
 }
 
@@ -430,9 +516,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 /* Create a minimal stack by mapping a zeroed page at the top of
-   user virtual memory. */
+   user virtual memory and put arguemnts at the right place. */
 static bool
-setup_stack (void **esp)
+setup_stack (void **esp, const char **argv, int argc)
 {
   uint8_t *kpage;
   bool success = false;
@@ -446,6 +532,44 @@ setup_stack (void **esp)
       else
         palloc_free_page (kpage);
     }
+  /* Start processing arguments. Currently, assume all arguments
+     fit into a single memory page. This could be extended to
+     support arguments exceeding this size in the future. */
+  char *esp_c = (char*) (*esp);
+
+  /* Keep address of strings pushed into the stack
+     Cannot use argv for this purpose, because it points to kernel memory */
+  char **string_address = (char**) malloc(MAX_ARGS_SIZE * sizeof(char*));
+
+  /* Copy strings. Start at the very top */
+  for(int i = 0; i < argc; i++)
+    {
+      esp_c -= strlen(argv[i]) + 1; // Make room for the string
+      strlcpy(esp_c, argv[i], strlen(argv[i]) + 1);
+      string_address[i] = esp_c;
+    }
+  string_address[argc] = NULL;
+  /* Align the stack pointer */
+  uint32_t esp_align = (uint32_t) esp_c; // Get the value of pointer (address)
+  uint32_t bytes_remained = (argc + 3) * 4; // Must push argc + 3 pointers
+  esp_align -= bytes_remained; // The value of esp after pushing remained args
+  esp_c -= (esp_align % 16); // Must be aligned to 16-byte boundary
+  uint32_t *esp_u = (uint32_t*) esp_c; // Used to write pointers
+  /* Push the string pointers */
+  for (int i = 0; i <= argc; i++)
+    {
+      esp_u -= 1;
+      *esp_u = string_address[argc - i]; // Push in reverse order
+    }
+  esp_u -= 1;
+  *esp_u = esp_u + 1; // Address of string_address[0] in userspace
+  esp_u -= 1;
+  *esp_u = argc;
+  /* Push a fake return address */
+  esp_u -= 1;
+  *esp_u = 1234U;
+  *esp = (void*) esp_u;
+  free (string_address);
   return success;
 }
 

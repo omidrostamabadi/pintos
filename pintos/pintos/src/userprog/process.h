@@ -3,6 +3,9 @@
 
 #include "threads/thread.h"
 
+extern struct semaphore file_sema;
+#define MAX_ARGS_SIZE 100 // Maximum number of arguments a program can accept
+
 tid_t process_execute (const char *file_name);
 int process_wait (tid_t);
 void process_exit (void);
