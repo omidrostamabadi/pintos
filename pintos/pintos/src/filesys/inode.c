@@ -6,9 +6,16 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
+
+/* Ignore caching system. Kept for comparison */
+//#define CACHE_BYPASS
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
+
+/* Number of cache elements */
+#define CACHE_ELEMENTS 64
 
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
@@ -39,6 +46,145 @@ struct inode
     struct inode_disk data;             /* Inode content. */
   };
 
+/* Data structures, global, static variables for buffer cache system */
+
+int clock_hand = 0; /* Used in clock algorithm */
+
+struct cache_entry cache_entries[CACHE_ELEMENTS]; /* Buffer cache */
+
+struct lock cache_lock; /* Acquire this lock prior to any modification to cache */
+
+struct list busy_sectors; /* List of sectors that should not be accessed by
+  other threads in the system */  
+
+/* Entries stored in cache */
+struct cache_entry
+  {
+    struct inode *its_inode; /* Inode for this cached sector */
+    int used; /* Is set anytime there's an access to this entry */
+    int dirty; /* If set, memory is inconsistent with disk */
+    block_sector_t sector; /* Number of the sector that's been cached */
+    struct lock busy_lock;
+    struct list_elem busy_elem;
+    char in_mem_data[BLOCK_SECTOR_SIZE]; /* Actual data of the sector */
+  };
+
+/* Sectors that should not be accessed by others */
+struct busy_sector
+  {
+    struct inode *its_file; /* Which file does this belong? */
+    block_sector_t sector; /* Sector number */
+    struct lock busy_lock; /* Used for synchronization. 
+      Other threads wait on this lock when they find the sector busy */
+    struct list_elem busy_elem; /* Put elements in busy_sectors list */
+  };
+
+/* Helper functions for buffer cache system */
+
+/* Checks cache to see if the sector is cached.
+    Returns the index for the cache element containing the sector if found.
+    If cannot find the sector in cache, returns -1.
+    */
+static int
+check_cache (block_sector_t sector, struct inode *inode)
+{
+  for (int i = 0; i < CACHE_ELEMENTS; i++)
+    {
+      if (cache_entries[i].sector == sector && cache_entries[i].its_inode == inode)
+        {
+          return i;
+        }
+    }
+  return -1; /* Sector not found in cache */
+}
+
+/* Put the sector which is being operated on (write, read, migrate to/from disk)
+    into the busy_sectors list. If others want to operate on this sector, they
+    wait by acquiring the lock. 
+    The caller must hold cache_lock so that
+    the state of the cache stays consistent.
+    */
+static void
+add_to_busy (int cache_index)
+{
+  /* Assure that caller holds cache_lock */
+  ASSERT (lock_held_by_current_thread (&cache_lock));
+
+  struct cache_entry *this_sector = check_busy (cache_index);
+  if (this_sector != NULL)
+    {
+      lock_release (&cache_lock);
+      lock_acquire (& (this_sector->busy_lock));
+      lock_acquire (&cache_lock);
+    }
+  else
+    {
+      this_sector = & (cache_entries[cache_index]);
+    }  
+  list_push_back (&busy_sectors, & (this_sector->busy_elem) );
+}
+
+/* Choose a cache block to be evicted in order to make room for a new one.
+    Works based on clock algorithm */
+static int
+clock_evict_block ()
+{
+  struct cache_entry tmp;
+  while (1)
+    {
+      tmp = cache_entries[clock_hand];
+      if (tmp.used == 1)
+        {
+          tmp.used--;
+          clock_hand++;
+          if (clock_hand >= CACHE_ELEMENTS)
+            clock_hand = 0;
+        }
+      else
+        {
+          int to_be_evicted = clock_hand;
+          clock_hand++;
+          if (clock_hand >= CACHE_ELEMENTS)
+            clock_hand = 0;
+          add_to_busy (to_be_evicted);
+          return to_be_evicted;
+        }
+    }
+}
+
+/* Replaces sector_index sector with cache_entry in cache_index position.
+    Writes previous data to disk if it is dirty. */
+static void 
+fetch_new_block (int cache_index, block_sector_t sector_index, struct inode *inode)
+{
+  if (cache_entries[cache_index].dirty == 1)
+    {
+      block_write (fs_device, cache_entries[cache_index].sector, 
+                    cache_entries[cache_index].in_mem_data);
+    }
+  block_read (fs_device, sector_index, cache_entries[cache_index].in_mem_data);
+  cache_entries[cache_index].dirty = 0;
+  cache_entries[cache_index].used = 1;
+  cache_entries[cache_index].its_inode = inode;
+  cache_entries[cache_index].sector = sector_index;
+}
+
+/* Returns the address of struct busy_sector in busy_sectors list.
+    If sector is not busy, returns NULL. */
+static struct busy_sector *
+check_busy (cache_index)
+{
+  struct cache_entry tmp = cache_entries[cache_index];
+  for (e = list_begin (&busy_sectors); e != list_end (&busy_sectors);
+       e = list_next (e))
+    {
+      struct busy_sector *bs = list_entry (e, struct busy_sector, busy_elem);
+      if (bs->sector == tmp.sector && bs->its_file == tmp.its_node)
+        return bs;
+    }
+  return NULL;
+}
+  
 /* Returns the block device sector that contains byte offset POS
    within INODE.
    Returns -1 if INODE does not contain data for a byte at offset
@@ -220,6 +366,30 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       if (chunk_size <= 0)
         break;
 
+      #ifndef CACHE_BYPASS
+      /* Check the cache for this sector. If the sector is busy, wait 
+          until it's free and add it to busy again. If the sector is not
+          present in the cache, read it from the disk. After these several lines
+          of code, cache_index points to a valid cache block for the sector. */
+      lock_acquire (&cache_lock);
+      int cache_index = check_cache (sector_idx, inode);
+      if (cache_index != -1) /* Sector found in cache */
+        {
+          add_to_busy (cache_index);
+          lock_release (&cache_lock);
+        }
+      else /* Could not find the sector in cache */
+        {
+          cache_index = clock_evict_block ();
+          lock_release (&cache_lock);
+          fetch_new_block (cache_index, sector_idx, inode);
+        }
+
+      memcpy (buffer + bytes_read, 
+              cache_entries[cache_index].in_mem_data + sector_ofs, chunk_size);
+
+      #else
+
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
           /* Read full sector directly into caller's buffer. */
@@ -238,6 +408,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
           block_read (fs_device, sector_idx, bounce);
           memcpy (buffer + bytes_read, bounce + sector_ofs, chunk_size);
         }
+        #endif /* CACHE_BYPASS */
 
       /* Advance. */
       size -= chunk_size;
