@@ -46,16 +46,7 @@ struct inode
     struct inode_disk data;             /* Inode content. */
   };
 
-/* Data structures, global, static variables for buffer cache system */
-
-int clock_hand = 0; /* Used in clock algorithm */
-
-struct cache_entry cache_entries[CACHE_ELEMENTS]; /* Buffer cache */
-
-struct lock cache_lock; /* Acquire this lock prior to any modification to cache */
-
-struct list busy_sectors; /* List of sectors that should not be accessed by
-  other threads in the system */  
+/* Data structures, global, static variables for buffer cache system */ 
 
 /* Entries stored in cache */
 struct cache_entry
@@ -78,6 +69,15 @@ struct busy_sector
       Other threads wait on this lock when they find the sector busy */
     struct list_elem busy_elem; /* Put elements in busy_sectors list */
   };
+
+int clock_hand = 0; /* Used in clock algorithm */
+
+struct cache_entry cache_entries[CACHE_ELEMENTS]; /* Buffer cache */
+
+struct lock cache_lock; /* Acquire this lock prior to any modification to cache */
+
+struct list busy_sectors; /* List of sectors that should not be accessed by
+  other threads in the system */ 
 
 /* Helper functions for buffer cache system */
 
@@ -120,6 +120,7 @@ add_to_busy (int cache_index)
   else
     {
       this_sector = & (cache_entries[cache_index]);
+      lock_acquire (&this_sector->busy_lock);
     }  
   list_push_back (&busy_sectors, & (this_sector->busy_elem) );
 }
@@ -129,13 +130,13 @@ add_to_busy (int cache_index)
 static int
 clock_evict_block ()
 {
-  struct cache_entry tmp;
+  struct cache_entry *tmp;
   while (1)
     {
-      tmp = cache_entries[clock_hand];
-      if (tmp.used == 1)
+      tmp = &cache_entries[clock_hand];
+      if (tmp->used == 1)
         {
-          tmp.used--;
+          tmp->used--;
           clock_hand++;
           if (clock_hand >= CACHE_ELEMENTS)
             clock_hand = 0;
@@ -171,15 +172,16 @@ fetch_new_block (int cache_index, block_sector_t sector_index, struct inode *ino
 
 /* Returns the address of struct busy_sector in busy_sectors list.
     If sector is not busy, returns NULL. */
-static struct busy_sector *
-check_busy (cache_index)
+static struct cache_entry *
+check_busy (int cache_index)
 {
+  struct list_elem *e;
   struct cache_entry tmp = cache_entries[cache_index];
   for (e = list_begin (&busy_sectors); e != list_end (&busy_sectors);
        e = list_next (e))
     {
-      struct busy_sector *bs = list_entry (e, struct busy_sector, busy_elem);
-      if (bs->sector == tmp.sector && bs->its_file == tmp.its_node)
+      struct cache_entry *bs = list_entry (e, struct cache_entry, busy_elem);
+      if (bs->sector == tmp.sector && bs->its_inode == tmp.its_inode)
         return bs;
     }
   return NULL;
