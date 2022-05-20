@@ -208,6 +208,13 @@ void
 inode_init (void)
 {
   list_init (&open_inodes);
+  lock_init (&cache_lock);
+  list_init (&busy_sectors);
+
+  for (int i = 0; i < CACHE_ELEMENTS; i++)
+    {
+      lock_init (& (cache_entries[i].busy_lock) );
+    }
 }
 
 /* Initializes an inode with LENGTH bytes of data and
