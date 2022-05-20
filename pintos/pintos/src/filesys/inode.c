@@ -388,6 +388,9 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       memcpy (buffer + bytes_read, 
               cache_entries[cache_index].in_mem_data + sector_ofs, chunk_size);
 
+      /* We are done with this sector. Remove it from busy list */
+      list_remove (& (cache_entries[cache_index].busy_elem) );
+      lock_release (& (cache_entries[cache_index].busy_lock) );
       #else
 
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
