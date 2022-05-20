@@ -455,6 +455,32 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       if (chunk_size <= 0)
         break;
 
+      #ifndef CACHE_BYPASS
+      /* Check the cache for this sector. If the sector is busy, wait 
+          until it's free and add it to busy again. If the sector is not
+          present in the cache, read it from the disk. After these several lines
+          of code, cache_index points to a valid cache block for the sector. */
+      lock_acquire (&cache_lock);
+      int cache_index = check_cache (sector_idx, inode);
+      if (cache_index != -1) /* Sector found in cache */
+        {
+          add_to_busy (cache_index);
+          lock_release (&cache_lock);
+        }
+      else /* Could not find the sector in cache */
+        {
+          cache_index = clock_evict_block ();
+          lock_release (&cache_lock);
+          fetch_new_block (cache_index, sector_idx, inode);
+        }
+
+      memcpy (cache_entries[cache_index].in_mem_data + sector_ofs, 
+              buffer + bytes_written, chunk_size);
+
+      /* We are done with this sector. Remove it from busy list */
+      list_remove (& (cache_entries[cache_index].busy_elem) );
+      lock_release (& (cache_entries[cache_index].busy_lock) );
+      #else
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
           /* Write full sector directly to disk. */
@@ -480,6 +506,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
           memcpy (bounce + sector_ofs, buffer + bytes_written, chunk_size);
           block_write (fs_device, sector_idx, bounce);
         }
+        #endif
 
       /* Advance. */
       size -= chunk_size;
