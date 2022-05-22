@@ -485,6 +485,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
       memcpy (cache_entries[cache_index].in_mem_data + sector_ofs, 
               buffer + bytes_written, chunk_size);
+      cache_entries[cache_index].dirty = 1;
 
       /* We are done with this sector. Remove it from busy list */
       list_remove (& (cache_entries[cache_index].busy_elem) );
