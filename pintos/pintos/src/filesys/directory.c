@@ -111,6 +111,20 @@ lookup (const struct dir *dir, const char *name,
   return false;
 }
 
+void
+list_files_in_root_dir ()
+{
+  struct dir *dir = dir_open_root();
+  struct dir_entry e;
+  size_t ofs;
+  for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+       ofs += sizeof e)
+    if (e.in_use)
+      {
+        printf("NAME: %s SECTOR: %u\n", e.name, e.inode_sector);
+      }
+}
+
 /* Searches DIR for a file with the given NAME
    and returns true if one exists, false otherwise.
    On success, sets *INODE to an inode for the file, otherwise to

@@ -10,12 +10,13 @@
 
 /* Ignore caching system. Kept for comparison */
 //#define CACHE_BYPASS
+#define NO_CLOCK_ALG
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
 
 /* Number of cache elements */
-#define CACHE_ELEMENTS 64
+#define CACHE_ELEMENTS 32
 
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
@@ -54,6 +55,7 @@ struct cache_entry
     struct inode *its_inode; /* Inode for this cached sector */
     int used; /* Is set anytime there's an access to this entry */
     int dirty; /* If set, memory is inconsistent with disk */
+    int is_busy;
     block_sector_t sector; /* Number of the sector that's been cached */
     struct lock busy_lock;
     struct list_elem busy_elem;
@@ -86,11 +88,11 @@ struct list busy_sectors; /* List of sectors that should not be accessed by
     If cannot find the sector in cache, returns -1.
     */
 static int
-check_cache (block_sector_t sector, struct inode *inode)
+check_cache (block_sector_t sector)
 {
   for (int i = 0; i < CACHE_ELEMENTS; i++)
     {
-      if (cache_entries[i].sector == sector && cache_entries[i].its_inode == inode)
+      if (cache_entries[i].sector == sector && cache_entries[i].is_busy == 1)
         {
           return i;
         }
@@ -110,19 +112,90 @@ add_to_busy (int cache_index)
   /* Assure that caller holds cache_lock */
   ASSERT (lock_held_by_current_thread (&cache_lock));
 
-  struct cache_entry *this_sector = check_busy (cache_index);
-  if (this_sector != NULL)
+  struct cache_entry *this_sector = &cache_entries[cache_index];
+
+  lock_release (&cache_lock);
+  lock_acquire (& (this_sector->busy_lock) );
+  lock_acquire (&cache_lock);
+  // if (this_sector != NULL)
+  //   {
+  //     lock_release (&cache_lock);
+  //     lock_acquire (& (this_sector->busy_lock));
+  //     lock_acquire (&cache_lock);
+  //   }
+  // else
+  //   {
+  //     this_sector = & (cache_entries[cache_index]);
+  //     lock_acquire (&this_sector->busy_lock);
+  //   }  
+  // list_push_back (&busy_sectors, & (this_sector->busy_elem) );
+}
+
+// static int
+// add_to_cache(block_sector_t sector, struct inode *inode)
+// {
+//   ASSERT (lock_held_by_current_thread (&cache_lock));
+
+//   int cache_index = check_cache(sector, inode);
+
+//   if (cache_index == -1)
+//     {
+//       cache_index = clock_evict_block ();
+//       lock_release (&cache_lock);
+//       fetch_new_block (cache_index, sector, inode);
+//       return cache_index;
+//     }
+
+//   struct cache_entry *this_sector = &cache_entries[cache_index];
+
+//   lock_release (&cache_lock);
+//   lock_acquire (& (this_sector->busy_lock) );
+//   lock_acquire (&cache_lock);
+
+//   while (this_sector->sector != sector || this_sector->its_inode != inode)
+//     {
+//   lock_release (& (this_sector->busy_lock) );
+//   cache_index = check_cache (sector, inode);
+//   if (cache_index == -1)
+//     {
+//       cache_index = clock_evict_block ();
+//       lock_release (&cache_lock);
+//       fetch_new_block (cache_index, sector, inode);
+//       return cache_index;
+//     }
+//   this_sector = &cache_entries[cache_index];
+
+//   lock_release (&cache_lock);
+//   lock_acquire (& (this_sector->busy_lock) );
+//   lock_acquire (&cache_lock);
+//   }
+//   lock_release (&cache_lock);
+//   return cache_index;
+// }
+
+static int
+simple_add_cache (block_sector_t sector)
+{
+  int cache_index = check_cache (sector);
+  if (cache_index == -1)
     {
-      lock_release (&cache_lock);
-      lock_acquire (& (this_sector->busy_lock));
-      lock_acquire (&cache_lock);
+      cache_index = clock_hand;
+      if (cache_entries[cache_index].dirty == 1)
+        {
+          block_write (fs_device, cache_entries[cache_index].sector, 
+            cache_entries[cache_index].in_mem_data);
+        }
+      block_read (fs_device, sector, cache_entries[cache_index].in_mem_data);
+      cache_entries[cache_index].used = 1;
+      cache_entries[cache_index].dirty = 0;
+      cache_entries[cache_index].is_busy = 1;
+      cache_entries[cache_index].its_inode = NULL;
+      cache_entries[cache_index].sector = sector;
+      clock_hand++;
+      if (clock_hand >= CACHE_ELEMENTS)
+        clock_hand = 0;
     }
-  else
-    {
-      this_sector = & (cache_entries[cache_index]);
-      lock_acquire (&this_sector->busy_lock);
-    }  
-  list_push_back (&busy_sectors, & (this_sector->busy_elem) );
+  return cache_index;
 }
 
 /* Choose a cache block to be evicted in order to make room for a new one.
@@ -130,6 +203,14 @@ add_to_busy (int cache_index)
 static int
 clock_evict_block ()
 {
+  #ifdef NO_CLOCK_ALG
+  int to_be_evicted = clock_hand;
+  clock_hand++;
+  if (clock_hand >= CACHE_ELEMENTS)
+    clock_hand = 0;
+  add_to_busy (to_be_evicted);
+  return to_be_evicted;
+  #else
   struct cache_entry *tmp;
   while (1)
     {
@@ -151,6 +232,7 @@ clock_evict_block ()
           return to_be_evicted;
         }
     }
+    #endif
 }
 
 /* Replaces sector_index sector with cache_entry in cache_index position.
@@ -158,6 +240,7 @@ clock_evict_block ()
 static void 
 fetch_new_block (int cache_index, block_sector_t sector_index, struct inode *inode)
 {
+  ASSERT (lock_held_by_current_thread (& (cache_entries[cache_index].busy_lock) ));
   if (cache_entries[cache_index].dirty == 1)
     {
       block_write (fs_device, cache_entries[cache_index].sector, 
@@ -185,6 +268,21 @@ check_busy (int cache_index)
         return bs;
     }
   return NULL;
+}
+
+static void
+cache_read (block_sector_t sector, void *buffer, int sector_ofs, int chunk_size)
+{
+  int cache_index = simple_add_cache (sector);
+  memcpy (buffer, cache_entries[cache_index].in_mem_data + sector_ofs, chunk_size);
+}
+
+static void
+cache_write (block_sector_t sector, void *buffer, int sector_ofs, int chunk_size)
+{
+  int cache_index = simple_add_cache (sector);
+  memcpy (cache_entries[cache_index].in_mem_data + sector_ofs, buffer, chunk_size);
+  cache_entries[cache_index].dirty = 1;
 }
   
 /* Returns the block device sector that contains byte offset POS
@@ -216,6 +314,8 @@ inode_init (void)
   for (int i = 0; i < CACHE_ELEMENTS; i++)
     {
       lock_init (& (cache_entries[i].busy_lock) );
+      cache_entries[i].dirty = 0;
+      cache_entries[i].is_busy = 0;
     }
 }
 
@@ -244,14 +344,16 @@ inode_create (block_sector_t sector, off_t length)
       disk_inode->magic = INODE_MAGIC;
       if (free_map_allocate (sectors, &disk_inode->start))
         {
-          block_write (fs_device, sector, disk_inode);
+          //block_write (fs_device, sector, disk_inode);
+          cache_write (sector, disk_inode, 0, BLOCK_SECTOR_SIZE);
           if (sectors > 0)
             {
               static char zeros[BLOCK_SECTOR_SIZE];
               size_t i;
 
               for (i = 0; i < sectors; i++)
-                block_write (fs_device, disk_inode->start + i, zeros);
+                // block_write (fs_device, disk_inode->start + i, zeros);
+                cache_write (disk_inode->start + i, zeros, 0, BLOCK_SECTOR_SIZE);
             }
           success = true;
         }
@@ -292,7 +394,8 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  block_read (fs_device, inode->sector, &inode->data);
+  //block_read (fs_device, inode->sector, &inode->data);
+  cache_read (inode->sector, &inode->data, 0, BLOCK_SECTOR_SIZE);
   return inode;
 }
 
@@ -380,26 +483,31 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
           until it's free and add it to busy again. If the sector is not
           present in the cache, read it from the disk. After these several lines
           of code, cache_index points to a valid cache block for the sector. */
-      lock_acquire (&cache_lock);
-      int cache_index = check_cache (sector_idx, inode);
-      if (cache_index != -1) /* Sector found in cache */
-        {
-          add_to_busy (cache_index);
-          lock_release (&cache_lock);
-        }
-      else /* Could not find the sector in cache */
-        {
-          cache_index = clock_evict_block ();
-          lock_release (&cache_lock);
-          fetch_new_block (cache_index, sector_idx, inode);
-        }
+      //lock_acquire (&cache_lock);
+
+      //int cache_index = add_to_cache (sector_idx, inode);
+      int cache_index = simple_add_cache (sector_idx);
+
+      // int cache_index = check_cache (sector_idx, inode);
+      // if (cache_index != -1) /* Sector found in cache */
+      //   {
+      //     add_to_busy (cache_index);
+      //     lock_release (&cache_lock);
+      //   }
+      // else /* Could not find the sector in cache */
+      //   {
+      //     cache_index = clock_evict_block ();
+      //     lock_release (&cache_lock);
+      //     fetch_new_block (cache_index, sector_idx, inode);
+      //   }
 
       memcpy (buffer + bytes_read, 
               cache_entries[cache_index].in_mem_data + sector_ofs, chunk_size);
 
+      //lock_release (&cache_lock);
       /* We are done with this sector. Remove it from busy list */
-      list_remove (& (cache_entries[cache_index].busy_elem) );
-      lock_release (& (cache_entries[cache_index].busy_lock) );
+    //  list_remove (& (cache_entries[cache_index].busy_elem) );
+      //lock_release (& (cache_entries[cache_index].busy_lock) );
       #else
 
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
@@ -469,27 +577,36 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
           until it's free and add it to busy again. If the sector is not
           present in the cache, read it from the disk. After these several lines
           of code, cache_index points to a valid cache block for the sector. */
-      lock_acquire (&cache_lock);
-      int cache_index = check_cache (sector_idx, inode);
-      if (cache_index != -1) /* Sector found in cache */
-        {
-          add_to_busy (cache_index);
-          lock_release (&cache_lock);
-        }
-      else /* Could not find the sector in cache */
-        {
-          cache_index = clock_evict_block ();
-          lock_release (&cache_lock);
-          fetch_new_block (cache_index, sector_idx, inode);
-        }
+      //lock_acquire (&cache_lock);
 
+      //int cache_index = add_to_cache (sector_idx, inode);
+      int cache_index = simple_add_cache (sector_idx);
+      
+      // int cache_index = check_cache (sector_idx, inode);
+      // if (cache_index != -1) /* Sector found in cache */
+      //   {
+      //     add_to_busy (cache_index);
+      //     lock_release (&cache_lock);
+      //   }
+      // else /* Could not find the sector in cache */
+      //   {
+      //     cache_index = clock_evict_block ();
+      //     lock_release (&cache_lock);
+      //     fetch_new_block (cache_index, sector_idx, inode);
+      //   }
+      
       memcpy (cache_entries[cache_index].in_mem_data + sector_ofs, 
-              buffer + bytes_written, chunk_size);
+          buffer + bytes_written, chunk_size);
+        
+      
       cache_entries[cache_index].dirty = 1;
 
+      //lock_release (&cache_lock);
+      // block_write (fs_device, cache_entries[cache_index].sector,
+      //              cache_entries[cache_index].in_mem_data); // Write-through
       /* We are done with this sector. Remove it from busy list */
-      list_remove (& (cache_entries[cache_index].busy_elem) );
-      lock_release (& (cache_entries[cache_index].busy_lock) );
+    //  list_remove (& (cache_entries[cache_index].busy_elem) );
+      //lock_release (& (cache_entries[cache_index].busy_lock) );
       #else
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
