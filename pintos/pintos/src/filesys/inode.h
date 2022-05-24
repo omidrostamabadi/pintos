@@ -22,7 +22,6 @@ off_t inode_length (const struct inode *);
 
 static struct cache_entry *check_busy (int);
 static int clock_evict_block ();
-static void fetch_new_block (int, block_sector_t ,
- struct inode *);
+static void fetch_new_block (int, block_sector_t);
 
 #endif /* filesys/inode.h */
