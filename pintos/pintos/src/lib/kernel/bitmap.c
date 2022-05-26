@@ -309,6 +309,22 @@ bitmap_scan (const struct bitmap *b, size_t start, size_t cnt, bool value)
   return BITMAP_ERROR;
 }
 
+size_t
+group_bitmap_scan (const struct bitmap *b, size_t start, size_t last, size_t cnt, bool value)
+{
+    ASSERT (b != NULL);
+    ASSERT (start <= b->bit_cnt);
+
+    if (cnt <= b->bit_cnt)
+    {
+        size_t i;
+        for (i = start; i <= last; i++)
+            if (!bitmap_contains (b, i, cnt, !value))
+                return i;
+    }
+    return BITMAP_ERROR;
+}
+
 /* Finds the first group of CNT consecutive bits in B at or after
    START that are all set to VALUE, flips them all to !VALUE,
    and returns the index of the first bit in the group.
@@ -323,6 +339,15 @@ bitmap_scan_and_flip (struct bitmap *b, size_t start, size_t cnt, bool value)
   if (idx != BITMAP_ERROR)
     bitmap_set_multiple (b, idx, cnt, !value);
   return idx;
+}
+
+size_t
+group_bitmap_scan_and_flip (struct bitmap *b, size_t start, size_t last, size_t cnt, bool value)
+{
+    size_t idx = group_bitmap_scan (b, start, last, cnt, value);
+    if (idx != BITMAP_ERROR)
+        bitmap_set_multiple (b, idx, cnt, !value);
+    return idx;
 }
 
 /* File input and output. */

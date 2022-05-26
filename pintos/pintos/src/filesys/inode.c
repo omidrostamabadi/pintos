@@ -19,6 +19,8 @@
 /* Number of cache elements */
 #define CACHE_ELEMENTS 64
 
+#define PTR_PER_SECTOR (BLOCK_SECTOR_SIZE  / 4)
+
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
@@ -26,7 +28,9 @@ struct inode_disk
     block_sector_t start;               /* First data sector. */
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
-    uint32_t unused[125];               /* Not used. */
+    block_sector_t direct_ptr[123];
+    block_sector_t indirect_ptr;
+    block_sector_t dbl_indirect_ptr;
   };
 
 /* Returns the number of sectors to allocate for an inode SIZE
@@ -400,8 +404,22 @@ static block_sector_t
 byte_to_sector (const struct inode *inode, off_t pos)
 {
   ASSERT (inode != NULL);
-  if (pos < inode->data.length)
-    return inode->data.start + pos / BLOCK_SECTOR_SIZE;
+  if (pos < inode->data.length) {
+      if(pos < 123 * BLOCK_SECTOR_SIZE)
+        return inode->data.direct_ptr[pos / BLOCK_SECTOR_SIZE];
+      else if (pos < (123+PTR_PER_SECTOR) * BLOCK_SECTOR_SIZE){
+        block_sector_t buf[PTR_PER_SECTOR];
+        cache_read(inode->data.indirect_ptr,buf, 0, BLOCK_SECTOR_SIZE);
+        return buf[(pos-123*BLOCK_SECTOR_SIZE) / BLOCK_SECTOR_SIZE];
+      }else {
+        off_t indirect_pos = (pos - (123+PTR_PER_SECTOR) * BLOCK_SECTOR_SIZE)/(BLOCK_SECTOR_SIZE*PTR_PER_SECTOR);
+        off_t indirect_off = (pos - (123+PTR_PER_SECTOR) * BLOCK_SECTOR_SIZE)%(BLOCK_SECTOR_SIZE*PTR_PER_SECTOR);
+        block_sector_t buf[PTR_PER_SECTOR];
+        cache_read(inode->data.dbl_indirect_ptr,buf, 0, BLOCK_SECTOR_SIZE);
+        cache_read(buf[indirect_pos],buf,0,BLOCK_SECTOR_SIZE);
+        return buf[indirect_off / BLOCK_SECTOR_SIZE];
+      }
+  }
   else
     return -1;
 }
@@ -426,6 +444,32 @@ inode_init (void)
     }
 }
 
+uint32_t find_prefer_group(){
+    return 0;
+}
+
+bool
+create_indirect_sector (block_sector_t* indirect_ptr, size_t size) {
+    block_sector_t temp_sector;
+    bool success = false;
+    if (group_free_map_allocate(find_prefer_group(), 1, indirect_ptr)) {
+        size_t i;
+        for (i = 0; i < size; i++) {
+            if (group_free_map_allocate(find_prefer_group(),1, &temp_sector)) {
+                static char zeros[BLOCK_SECTOR_SIZE];
+                cache_write(*indirect_ptr,&temp_sector,4*i, sizeof(block_sector_t*));
+                cache_write(temp_sector,zeros, 0, BLOCK_SECTOR_SIZE);
+                success = true;
+            }else{
+                success = false;
+                break;
+            }
+        }
+    }
+    return success;
+}
+
+
 /* Initializes an inode with LENGTH bytes of data and
    writes the new inode to sector SECTOR on the file system
    device.
@@ -434,39 +478,65 @@ inode_init (void)
 bool
 inode_create (block_sector_t sector, off_t length)
 {
-  struct inode_disk *disk_inode = NULL;
-  bool success = false;
+    struct inode_disk *disk_inode = NULL;
+    bool success = false;
 
-  ASSERT (length >= 0);
+    ASSERT (length >= 0);
 
-  /* If this assertion fails, the inode structure is not exactly
-     one sector in size, and you should fix that. */
-  ASSERT (sizeof *disk_inode == BLOCK_SECTOR_SIZE);
+    /* If this assertion fails, the inode structure is not exactly
+       one sector in size, and you should fix that. */
+    ASSERT (sizeof *disk_inode == BLOCK_SECTOR_SIZE);
 
-  disk_inode = calloc (1, sizeof *disk_inode);
-  if (disk_inode != NULL)
+    disk_inode = calloc (1, sizeof *disk_inode);
+    if (disk_inode != NULL)
     {
-      size_t sectors = bytes_to_sectors (length);
-      disk_inode->length = length;
-      disk_inode->magic = INODE_MAGIC;
-      if (free_map_allocate (sectors, &disk_inode->start))
-        {
-          //block_write (fs_device, sector, disk_inode);
-          cache_write (sector, disk_inode, 0, BLOCK_SECTOR_SIZE);
-          if (sectors > 0)
-            {
-              static char zeros[BLOCK_SECTOR_SIZE];
-              size_t i;
-
-              for (i = 0; i < sectors; i++)
-                // block_write (fs_device, disk_inode->start + i, zeros);
-                cache_write (disk_inode->start + i, zeros, 0, BLOCK_SECTOR_SIZE);
+        size_t sectors = bytes_to_sectors (length);
+        disk_inode->length = length;
+        disk_inode->magic = INODE_MAGIC;
+        size_t min_size = sectors < 123 ? sectors : 123;
+        size_t i;
+        for (i = 0; i <= min_size; i++) {
+            if(min_size != 0 && min_size == i)
+                break;
+            if (group_free_map_allocate(find_prefer_group(),1, &disk_inode->direct_ptr[i])) {
+                success = true;
+//                cache_write(sector,disk_inode,0, BLOCK_SECTOR_SIZE);
+                if (sectors > 0) {
+                    static char zeros[BLOCK_SECTOR_SIZE];
+                    cache_write(disk_inode->direct_ptr[i],zeros,0, BLOCK_SECTOR_SIZE);
+                }
+            }else{
+                success = false;
             }
-          success = true;
         }
-      free (disk_inode);
+        if (sectors > 123){
+            size_t min_size = sectors - 123 < PTR_PER_SECTOR ? sectors - 123 : PTR_PER_SECTOR;
+            success = create_indirect_sector(&disk_inode->indirect_ptr,min_size);
+        }
+        if (sectors > 123 + PTR_PER_SECTOR){
+            if (group_free_map_allocate(find_prefer_group(), 1, &disk_inode->dbl_indirect_ptr)) {
+                size_t size = sectors - 123 - PTR_PER_SECTOR;
+                size_t i=0;
+                while(min_size>0){
+                    block_sector_t temp_sector;
+                    size_t min_size = size < PTR_PER_SECTOR ? size : PTR_PER_SECTOR;
+                    success = create_indirect_sector(&temp_sector, min_size);
+                    if (!success)
+                        break;
+                    cache_write(disk_inode->dbl_indirect_ptr,&temp_sector,4*i, sizeof(block_sector_t*));
+                    size -= PTR_PER_SECTOR;
+                    i++;
+                }
+
+            }
+        }
+        if (success){
+            cache_write(sector,disk_inode,0, BLOCK_SECTOR_SIZE);
+            disk_inode->start = disk_inode->direct_ptr[0];
+        }
+        free (disk_inode);
     }
-  return success;
+    return success;
 }
 
 /* Reads an inode from SECTOR
@@ -542,8 +612,15 @@ inode_close (struct inode *inode)
       if (inode->removed)
         {
           free_map_release (inode->sector, 1);
-          free_map_release (inode->data.start,
-                            bytes_to_sectors (inode->data.length));
+          size_t i;
+          size_t sectors = bytes_to_sectors(inode->data.length);
+          size_t size_left = inode->data.length;
+          off_t cur_byte = 0;
+          for(i=0; i < sectors; i++) {
+              block_sector_t release_sector = byte_to_sector(inode,cur_byte);
+              free_map_release(release_sector,1);
+              cur_byte += BLOCK_SECTOR_SIZE;
+          }
         }
 
       free (inode);

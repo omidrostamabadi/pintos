@@ -2,6 +2,7 @@
 #define FILESYS_INODE_H
 
 #include <stdbool.h>
+#include <bitmap.h>
 #include "filesys/off_t.h"
 #include "devices/block.h"
 
@@ -24,4 +25,11 @@ static struct cache_entry *check_busy (int);
 static int clock_evict_block ();
 static void fetch_new_block (int, block_sector_t);
 
+static uint32_t GROUP_SIZE = 512;
+static uint32_t GROUP_COUNT = 8;
+struct bitmap **group_bitmaps;
+static void
+normal_read (block_sector_t sector, void *buffer, int sector_ofs, int chunk_size);
+static void
+normal_write (block_sector_t sector, void *buffer, int sector_ofs, int chunk_size);
 #endif /* filesys/inode.h */
