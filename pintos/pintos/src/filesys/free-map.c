@@ -63,6 +63,39 @@ group_free_map_allocate (uint32_t group_idx,size_t cnt, block_sector_t *sectorp)
 }
 
 bool
+group_has_free (uint32_t group_idx)
+{
+  size_t start = group_idx * GROUP_SIZE;
+//  uint32_t end = (group_idx + 1) * GROUP_SIZE - 1; // Inclusive end
+  /* If this group has free elements */
+  bool tmp = bitmap_contains (free_map, start, GROUP_SIZE, false);
+  return tmp;
+}
+
+uint32_t
+max_free_group ()
+{
+  uint32_t max_group = 0;
+  size_t max_sectors = 0;
+  size_t tmp_max;
+  uint32_t start;
+  for(uint32_t group_idx = 0; group_idx < GROUP_COUNT; group_idx++)
+    {
+      start = group_idx * GROUP_SIZE;
+      tmp_max = bitmap_count (free_map, start, GROUP_SIZE, false);
+      if (tmp_max > max_sectors)
+        {
+          max_sectors = tmp_max;
+          max_group = group_idx;
+        }
+    }
+  if (max_sectors != 0)
+    return max_group;
+  else
+    return BITMAP_ERROR;
+}
+
+bool
 bit_map_allocate (uint32_t group,struct bitmap **bit_map,size_t cnt, block_sector_t *sectorp)
 {
     block_sector_t sector = bitmap_scan_and_flip (bit_map[group], 0, cnt, false);

@@ -9,7 +9,7 @@
 #include "threads/synch.h"
 
 /* Ignore caching system. Kept for comparison */
-#define CACHE_BYPASS
+//#define CACHE_BYPASS
 //#define NO_CLOCK_ALG
 #define CLOCK_CHANCES 2
 
@@ -425,18 +425,22 @@ inode_init (void)
     }
 }
 
-uint32_t find_prefer_group(){
-    return 0;
+uint32_t find_preferred_group(block_sector_t sector) {
+    uint32_t preferred_group = sector / GROUP_SIZE;
+    if (group_has_free (preferred_group))
+      return preferred_group;
+    else
+      return max_free_group ();
 }
 
 bool
-create_indirect_sector (block_sector_t* indirect_ptr, size_t size) {
+create_indirect_sector (block_sector_t* indirect_ptr, size_t size, block_sector_t psector) {
     block_sector_t temp_sector;
     bool success = false;
-    if (group_free_map_allocate(find_prefer_group(), 1, indirect_ptr)) {
+    if (group_free_map_allocate(find_preferred_group(psector), 1, indirect_ptr)) {
         size_t i;
         for (i = 0; i < size; i++) {
-            if (group_free_map_allocate(find_prefer_group(),1, &temp_sector)) {
+            if (group_free_map_allocate(find_preferred_group(psector),1, &temp_sector)) {
                 static char zeros[BLOCK_SECTOR_SIZE];
                 cache_write(*indirect_ptr,&temp_sector,4*i, sizeof(block_sector_t*));
                 cache_write(temp_sector,zeros, 0, BLOCK_SECTOR_SIZE);
@@ -452,16 +456,16 @@ create_indirect_sector (block_sector_t* indirect_ptr, size_t size) {
 
 
 bool
-create_indirect_sector_from_ofs (block_sector_t* indirect_ptr, size_t size, off_t offset) {
+create_indirect_sector_from_ofs (block_sector_t* indirect_ptr, size_t size, off_t offset, block_sector_t psector) {
     block_sector_t temp_sector;
     bool success = false,flag=true;
     if(*indirect_ptr==0) {
-        flag = group_free_map_allocate(find_prefer_group(), 1, indirect_ptr);
+        flag = group_free_map_allocate(find_preferred_group(psector), 1, indirect_ptr);
     }
     if (flag) {
         size_t i;
         for (i = offset; i < size+offset; i++) {
-            if (group_free_map_allocate(find_prefer_group(),1, &temp_sector)) {
+            if (group_free_map_allocate(find_preferred_group(psector),1, &temp_sector)) {
                 static char zeros[BLOCK_SECTOR_SIZE];
                 cache_write(*indirect_ptr,&temp_sector,4*i, sizeof(block_sector_t*));
                 cache_write(temp_sector,zeros, 0, BLOCK_SECTOR_SIZE);
@@ -508,7 +512,7 @@ inode_create (block_sector_t sector, off_t length)
         for (i = 0; i <= min_size; i++) {
             if(min_size != 0 && min_size == i)
                 break;
-            if (group_free_map_allocate(find_prefer_group(),1, &disk_inode->direct_ptr[i])) {
+            if (group_free_map_allocate(find_preferred_group(sector),1, &disk_inode->direct_ptr[i])) {
                 success = true;
 //                cache_write(sector,disk_inode,0, BLOCK_SECTOR_SIZE);
                 if (sectors > 0) {
@@ -521,16 +525,16 @@ inode_create (block_sector_t sector, off_t length)
         }
         if (sectors > 123){
             size_t min_size = sectors - 123 < PTR_PER_SECTOR ? sectors - 123 : PTR_PER_SECTOR;
-            success = create_indirect_sector(&disk_inode->indirect_ptr,min_size);
+            success = create_indirect_sector(&disk_inode->indirect_ptr,min_size, sector);
         }
         if (sectors > 123 + PTR_PER_SECTOR){
-            if (group_free_map_allocate(find_prefer_group(), 1, &disk_inode->dbl_indirect_ptr)) {
+            if (group_free_map_allocate(find_preferred_group(sector), 1, &disk_inode->dbl_indirect_ptr)) {
                 int size = sectors - 123 - PTR_PER_SECTOR;
                 size_t i=0;
                 while(size>0){
                     block_sector_t temp_sector;
                     size_t min_size = size < PTR_PER_SECTOR ? size : PTR_PER_SECTOR;
-                    success = create_indirect_sector(&temp_sector, min_size);
+                    success = create_indirect_sector(&temp_sector, min_size, sector);
                     if (!success)
                         break;
                     cache_write(disk_inode->dbl_indirect_ptr,&temp_sector,4*i, sizeof(block_sector_t*));
@@ -742,7 +746,7 @@ allocate_sectors(struct inode* data_inode, block_sector_t needed_sectors,block_s
     bool success = false;
     if(cur_sectors < 123){
         for(size_t i=cur_sectors; i < 123; i++){
-            if (group_free_map_allocate(find_prefer_group(),1, &data_inode->data.direct_ptr[i])) {
+            if (group_free_map_allocate(find_preferred_group(data_inode->sector),1, &data_inode->data.direct_ptr[i])) {
 //                cache_write(sector,disk_inode,0, BLOCK_SECTOR_SIZE);
                     static char zeros[BLOCK_SECTOR_SIZE];
                     cache_write(data_inode->data.direct_ptr[i],zeros,0, BLOCK_SECTOR_SIZE);
@@ -755,12 +759,12 @@ allocate_sectors(struct inode* data_inode, block_sector_t needed_sectors,block_s
     if(cur_sectors < 123 + PTR_PER_SECTOR) {
         size_t min_size = remain_sectors < PTR_PER_SECTOR+123-cur_sectors ? remain_sectors : PTR_PER_SECTOR+123-cur_sectors;
         off_t ofs = cur_sectors<123 ? 0 : cur_sectors-123;
-        success = create_indirect_sector_from_ofs(&data_inode->data.indirect_ptr, min_size,ofs);
+        success = create_indirect_sector_from_ofs(&data_inode->data.indirect_ptr, min_size,ofs, data_inode->sector);
         remain_sectors -= min_size;
         if (remain_sectors == 0)
             return true;
     }
-    if (group_free_map_allocate(find_prefer_group(), 1, &data_inode->data.dbl_indirect_ptr)) {
+    if (group_free_map_allocate(find_preferred_group(data_inode->sector), 1, &data_inode->data.dbl_indirect_ptr)) {
         int size = needed_sectors - 123 - PTR_PER_SECTOR;
         size_t i=0;
         if(cur_sectors > 123 + PTR_PER_SECTOR){
@@ -769,7 +773,7 @@ allocate_sectors(struct inode* data_inode, block_sector_t needed_sectors,block_s
         block_sector_t sector_off = (cur_sectors -123 - PTR_PER_SECTOR) % PTR_PER_SECTOR;
         block_sector_t temp_sector;
         size_t min_size = size < PTR_PER_SECTOR-sector_off ? size : PTR_PER_SECTOR-sector_off;
-        success = create_indirect_sector_from_ofs(&temp_sector, min_size,sector_off);
+        success = create_indirect_sector_from_ofs(&temp_sector, min_size,sector_off, data_inode->sector);
         if (!success)
             return false;
         remain_sectors-=min_size;
@@ -781,7 +785,7 @@ allocate_sectors(struct inode* data_inode, block_sector_t needed_sectors,block_s
         while(size>0){
             block_sector_t temp_sector;
             size_t min_size = size < PTR_PER_SECTOR ? size : PTR_PER_SECTOR;
-            success = create_indirect_sector(&temp_sector, min_size);
+            success = create_indirect_sector(&temp_sector, min_size, data_inode->sector);
             if (!success)
                 break;
             remain_sectors-=min_size;

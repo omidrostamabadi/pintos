@@ -47,7 +47,7 @@ filesys_create (const char *name, off_t initial_size)
 {
   block_sector_t inode_sector = 0;
   struct dir *dir = dir_open_root ();
-  uint32_t group_idx = 0;
+  uint32_t group_idx = find_preferred_group (inode_sector);
   bool success = (dir != NULL
                   && group_free_map_allocate (group_idx, 1, &inode_sector)
                   && inode_create (inode_sector, initial_size)

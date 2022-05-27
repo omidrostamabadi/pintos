@@ -58,4 +58,6 @@ static void
 normal_write (block_sector_t sector, void *buffer, int sector_ofs, int chunk_size);
 bool
 extend_inode(struct inode* data_inode,off_t offset,size_t size);
+
+uint32_t find_preferred_group(block_sector_t sector);
 #endif /* filesys/inode.h */
