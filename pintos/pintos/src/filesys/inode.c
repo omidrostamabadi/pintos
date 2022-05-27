@@ -117,6 +117,18 @@ add_to_busy (int cache_index)
   // list_push_back (&busy_sectors, & (this_sector->busy_elem) );
 }
 
+void inode_write_dirty_to_disk ()
+{
+  for(int i = 0; i < CACHE_ELEMENTS; i++)
+    {
+      if (cache_entries[i].dirty)
+        {
+          block_write (fs_device, cache_entries[i].sector,
+           cache_entries[i].in_mem_data);
+        }
+    }
+}
+
 static int
 add_to_cache(block_sector_t sector)
 {
