@@ -9,7 +9,7 @@
 #include "threads/synch.h"
 
 /* Ignore caching system. Kept for comparison */
-//#define CACHE_BYPASS
+#define CACHE_BYPASS
 //#define NO_CLOCK_ALG
 #define CLOCK_CHANCES 2
 
@@ -21,17 +21,7 @@
 
 #define PTR_PER_SECTOR (BLOCK_SECTOR_SIZE  / 4)
 
-/* On-disk inode.
-   Must be exactly BLOCK_SECTOR_SIZE bytes long. */
-struct inode_disk
-  {
-    block_sector_t start;               /* First data sector. */
-    off_t length;                       /* File size in bytes. */
-    unsigned magic;                     /* Magic number. */
-    block_sector_t direct_ptr[123];
-    block_sector_t indirect_ptr;
-    block_sector_t dbl_indirect_ptr;
-  };
+
 
 /* Returns the number of sectors to allocate for an inode SIZE
    bytes long. */
@@ -41,16 +31,7 @@ bytes_to_sectors (off_t size)
   return DIV_ROUND_UP (size, BLOCK_SECTOR_SIZE);
 }
 
-/* In-memory inode. */
-struct inode
-  {
-    struct list_elem elem;              /* Element in inode list. */
-    block_sector_t sector;              /* Sector number of disk location. */
-    int open_cnt;                       /* Number of openers. */
-    bool removed;                       /* True if deleted, false otherwise. */
-    int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    struct inode_disk data;             /* Inode content. */
-  };
+
 
 /* Data structures, global, static variables for buffer cache system */ 
 
@@ -470,6 +451,31 @@ create_indirect_sector (block_sector_t* indirect_ptr, size_t size) {
 }
 
 
+bool
+create_indirect_sector_from_ofs (block_sector_t* indirect_ptr, size_t size, off_t offset) {
+    block_sector_t temp_sector;
+    bool success = false,flag=true;
+    if(*indirect_ptr==0) {
+        flag = group_free_map_allocate(find_prefer_group(), 1, indirect_ptr);
+    }
+    if (flag) {
+        size_t i;
+        for (i = offset; i < size+offset; i++) {
+            if (group_free_map_allocate(find_prefer_group(),1, &temp_sector)) {
+                static char zeros[BLOCK_SECTOR_SIZE];
+                cache_write(*indirect_ptr,&temp_sector,4*i, sizeof(block_sector_t*));
+                cache_write(temp_sector,zeros, 0, BLOCK_SECTOR_SIZE);
+                success = true;
+            }else{
+                success = false;
+                break;
+            }
+        }
+    }
+    return success;
+}
+
+
 /* Initializes an inode with LENGTH bytes of data and
    writes the new inode to sector SECTOR on the file system
    device.
@@ -493,6 +499,10 @@ inode_create (block_sector_t sector, off_t length)
         size_t sectors = bytes_to_sectors (length);
         disk_inode->length = length;
         disk_inode->magic = INODE_MAGIC;
+        if (length==0) {
+            cache_write(sector,disk_inode,0, BLOCK_SECTOR_SIZE);
+            return true;
+        }
         size_t min_size = sectors < 123 ? sectors : 123;
         size_t i;
         for (i = 0; i <= min_size; i++) {
@@ -515,9 +525,9 @@ inode_create (block_sector_t sector, off_t length)
         }
         if (sectors > 123 + PTR_PER_SECTOR){
             if (group_free_map_allocate(find_prefer_group(), 1, &disk_inode->dbl_indirect_ptr)) {
-                size_t size = sectors - 123 - PTR_PER_SECTOR;
+                int size = sectors - 123 - PTR_PER_SECTOR;
                 size_t i=0;
-                while(min_size>0){
+                while(size>0){
                     block_sector_t temp_sector;
                     size_t min_size = size < PTR_PER_SECTOR ? size : PTR_PER_SECTOR;
                     success = create_indirect_sector(&temp_sector, min_size);
@@ -726,6 +736,84 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   return bytes_read;
 }
 
+bool
+allocate_sectors(struct inode* data_inode, block_sector_t needed_sectors,block_sector_t cur_sectors){
+    block_sector_t remain_sectors = needed_sectors - cur_sectors;
+    bool success = false;
+    if(cur_sectors < 123){
+        for(size_t i=cur_sectors; i < 123; i++){
+            if (group_free_map_allocate(find_prefer_group(),1, &data_inode->data.direct_ptr[i])) {
+//                cache_write(sector,disk_inode,0, BLOCK_SECTOR_SIZE);
+                    static char zeros[BLOCK_SECTOR_SIZE];
+                    cache_write(data_inode->data.direct_ptr[i],zeros,0, BLOCK_SECTOR_SIZE);
+                    remain_sectors--;
+                    if(remain_sectors==0)
+                        return true;
+            }
+        }
+    }
+    if(cur_sectors < 123 + PTR_PER_SECTOR) {
+        size_t min_size = remain_sectors < PTR_PER_SECTOR+123-cur_sectors ? remain_sectors : PTR_PER_SECTOR+123-cur_sectors;
+        off_t ofs = cur_sectors<123 ? 0 : cur_sectors-123;
+        success = create_indirect_sector_from_ofs(&data_inode->data.indirect_ptr, min_size,ofs);
+        remain_sectors -= min_size;
+        if (remain_sectors == 0)
+            return true;
+    }
+    if (group_free_map_allocate(find_prefer_group(), 1, &data_inode->data.dbl_indirect_ptr)) {
+        int size = needed_sectors - 123 - PTR_PER_SECTOR;
+        size_t i=0;
+        if(cur_sectors > 123 + PTR_PER_SECTOR){
+            i = (cur_sectors -123 - PTR_PER_SECTOR)/PTR_PER_SECTOR;
+        }
+        block_sector_t sector_off = (cur_sectors -123 - PTR_PER_SECTOR) % PTR_PER_SECTOR;
+        block_sector_t temp_sector;
+        size_t min_size = size < PTR_PER_SECTOR-sector_off ? size : PTR_PER_SECTOR-sector_off;
+        success = create_indirect_sector_from_ofs(&temp_sector, min_size,sector_off);
+        if (!success)
+            return false;
+        remain_sectors-=min_size;
+        if(remain_sectors==0)
+            return true;
+        cache_write(data_inode->data.dbl_indirect_ptr,&temp_sector,4*i, sizeof(block_sector_t*));
+        size -= PTR_PER_SECTOR-sector_off;
+        i++;
+        while(size>0){
+            block_sector_t temp_sector;
+            size_t min_size = size < PTR_PER_SECTOR ? size : PTR_PER_SECTOR;
+            success = create_indirect_sector(&temp_sector, min_size);
+            if (!success)
+                break;
+            remain_sectors-=min_size;
+            cache_write(data_inode->data.dbl_indirect_ptr,&temp_sector,4*i, sizeof(block_sector_t*));
+            size -= PTR_PER_SECTOR;
+            i++;
+        }
+    }
+    if(remain_sectors==0)
+        return true;
+    else
+        return false;
+}
+bool
+extend_inode(struct inode* data_inode,off_t offset,size_t size){
+    block_sector_t cur_sectors = bytes_to_sectors(data_inode->data.length);
+    block_sector_t needed_sectors = bytes_to_sectors(offset+size);
+    if (needed_sectors > cur_sectors){
+        if(allocate_sectors(data_inode,needed_sectors,cur_sectors)){
+            data_inode->data.length = offset+size;
+            cache_write(data_inode->sector,&data_inode->data,0,BLOCK_SECTOR_SIZE);
+            return true;
+        }
+        return false;
+    }
+    if(data_inode->data.length < offset+size ) {
+        data_inode->data.length = offset + size;
+        cache_write(data_inode->sector, &data_inode->data, 0, BLOCK_SECTOR_SIZE);
+    }
+    return true;
+}
+
 /* Writes SIZE bytes from BUFFER into INODE, starting at OFFSET.
    Returns the number of bytes actually written, which may be
    less than SIZE if end of file is reached or an error occurs.
@@ -742,6 +830,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   if (inode->deny_write_cnt)
     return 0;
 
+    extend_inode(inode,offset,size);
   while (size > 0)
     {
       /* Sector to write, starting byte offset within sector. */

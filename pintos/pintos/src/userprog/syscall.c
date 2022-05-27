@@ -248,16 +248,11 @@ seek_handler (struct intr_frame *f)
           exit_process (-1);
           NOT_REACHED ();
         }
-      if (args[2] < f_size)
+      else
         {
           sema_down (&file_sema); // Acquire global filesystem lock
           file_seek (file, args[2]);
           sema_up (&file_sema); // Release global filesystem lock
-        }
-      else
-        {
-          exit_process (-1);
-          NOT_REACHED ();
         }
     }
   else

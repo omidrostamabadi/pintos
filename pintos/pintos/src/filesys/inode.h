@@ -5,6 +5,30 @@
 #include <bitmap.h>
 #include "filesys/off_t.h"
 #include "devices/block.h"
+#include <list.h>
+
+/* On-disk inode.
+   Must be exactly BLOCK_SECTOR_SIZE bytes long. */
+struct inode_disk
+{
+    block_sector_t start;               /* First data sector. */
+    off_t length;                       /* File size in bytes. */
+    unsigned magic;                     /* Magic number. */
+    block_sector_t direct_ptr[123];
+    block_sector_t indirect_ptr;
+    block_sector_t dbl_indirect_ptr;
+};
+
+/* In-memory inode. */
+struct inode
+{
+    struct list_elem elem;              /* Element in inode list. */
+    block_sector_t sector;              /* Sector number of disk location. */
+    int open_cnt;                       /* Number of openers. */
+    bool removed;                       /* True if deleted, false otherwise. */
+    int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
+    struct inode_disk data;             /* Inode content. */
+};
 
 struct bitmap;
 
@@ -32,4 +56,6 @@ static void
 normal_read (block_sector_t sector, void *buffer, int sector_ofs, int chunk_size);
 static void
 normal_write (block_sector_t sector, void *buffer, int sector_ofs, int chunk_size);
+bool
+extend_inode(struct inode* data_inode,off_t offset,size_t size);
 #endif /* filesys/inode.h */
