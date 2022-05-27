@@ -585,6 +585,7 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
+  lock_init (&inode->extend_lock);
   //block_read (fs_device, inode->sector, &inode->data);
   cache_read (inode->sector, &inode->data, 0, BLOCK_SECTOR_SIZE);
   return inode;
@@ -801,20 +802,24 @@ allocate_sectors(struct inode* data_inode, block_sector_t needed_sectors,block_s
 }
 bool
 extend_inode(struct inode* data_inode,off_t offset,size_t size){
+    lock_acquire (&data_inode->extend_lock);
     block_sector_t cur_sectors = bytes_to_sectors(data_inode->data.length);
     block_sector_t needed_sectors = bytes_to_sectors(offset+size);
     if (needed_sectors > cur_sectors){
         if(allocate_sectors(data_inode,needed_sectors,cur_sectors)){
             data_inode->data.length = offset+size;
             cache_write(data_inode->sector,&data_inode->data,0,BLOCK_SECTOR_SIZE);
+            lock_release (&data_inode->extend_lock);
             return true;
         }
+        lock_release (&data_inode->extend_lock);
         return false;
     }
     if(data_inode->data.length < offset+size ) {
         data_inode->data.length = offset + size;
         cache_write(data_inode->sector, &data_inode->data, 0, BLOCK_SECTOR_SIZE);
     }
+    lock_release (&data_inode->extend_lock);
     return true;
 }
 
