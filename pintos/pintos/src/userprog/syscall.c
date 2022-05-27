@@ -7,7 +7,7 @@
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
-
+#include "filesys/directory.h"
 static void syscall_handler (struct intr_frame *);
 
 void exec_handler(struct intr_frame *f);
@@ -24,6 +24,11 @@ void write_handler(struct intr_frame *f);
 void read_handler(struct intr_frame *f);
 void remove_handler(struct intr_frame *f);
 void open_handler(struct intr_frame *f);
+//void isdir_handler(struct intr_frame *f);
+void mkdir_handler(struct intr_frame *f);
+//void readdir_handler(struct intr_frame *f);
+//void inumber_handler(struct intr_frame *f);
+//void chdir_handler(struct intr_frame *f);
 int get_free_fd ();
 static struct file *get_file_from_fd (int fd);
 
@@ -100,10 +105,43 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
     case SYS_OPEN:
       open_handler(f);
-      break; 
+      break;
+    case SYS_CHDIR:
+//        chdir_handler(f);
+        break;
+    case SYS_MKDIR:
+        mkdir_handler(f);
+        break;
+    case SYS_READDIR:
+//        readdir_handler(f);
+        break;
+    case SYS_ISDIR:
+//        isdir_handler(f);
+        break;
+    case SYS_INUMBER:
+//        inumber_handler(f);
+        break;
     default:
       break;
     }
+}
+
+void mkdir_handler(struct intr_frame *f){
+    uint32_t* args = ((uint32_t*) f->esp);
+    if (!is_valid_str (args[1]))
+    {
+        exit_process (-1);
+        NOT_REACHED ();
+    }
+    if (!is_valid_ptr (&args[2], 4))
+    {
+        exit_process (-1);
+        NOT_REACHED ();
+    }
+    const char* dir_name = (const char*) args[1];
+    bool status = false;
+    status = mkdir(dir_name);
+    f->eax = status;
 }
 
 void

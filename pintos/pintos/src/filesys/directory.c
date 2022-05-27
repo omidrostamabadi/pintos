@@ -5,12 +5,13 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "threads/malloc.h"
-
+#include "threads/thread.h"
 /* A directory. */
 struct dir
   {
     struct inode *inode;                /* Backing store. */
     off_t pos;                          /* Current position. */
+    struct lock* dir_lock;
   };
 
 /* A single directory entry. */
@@ -19,6 +20,7 @@ struct dir_entry
     block_sector_t inode_sector;        /* Sector number of header. */
     char name[NAME_MAX + 1];            /* Null terminated file name. */
     bool in_use;                        /* In use or free? */
+    bool is_dir;
   };
 
 /* Creates a directory with space for ENTRY_CNT entries in the
@@ -247,4 +249,86 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
         }
     }
   return false;
+}
+
+//bool isdir(){
+//
+//}
+
+//void chdir(){
+//
+//}
+
+bool mkdir(const char* dir_name){
+    block_sector_t inode_sector = 0;
+    struct dir *dir = dir_open_root ();
+    uint32_t group_idx = 0;
+    bool success = (dir != NULL
+                    && group_free_map_allocate (group_idx, 1, &inode_sector)
+                    && dir_create (inode_sector, 16));
+    const char* name = parse(&dir, dir_name);
+    success = success && dir_add (dir, name, inode_sector);
+    if (!success && inode_sector != 0)
+        free_map_release (inode_sector, 1);
+    dir_close (dir);
+
+    return success;
+
+//    block_sector_t sector;
+//    thread_current()->cwd = dir_open_root();
+//    if (!dir_create(sector, 16)){
+//     return false;
+//    }
+////    const char* name = (const char*) parse(dir);
+//    if (!dir_add(thread_current()->cwd, parse(dir), sector)){
+//     return false;
+//    }
+//    return true;
+}
+struct dir* find_working_directory(const struct dir* cur_dir, const char* name){
+    struct inode* cur_inode = NULL;
+    dir_lookup(cur_dir, name, &cur_inode);
+    return dir_open(cur_inode);
+}
+
+const char* parse(struct dir** dir, char* input){
+    struct dir* parent_dir;
+    char symbol[NAME_MAX + 1];
+    while (get_next_part(symbol, &input) == 1){
+        parent_dir = find_working_directory(*dir, symbol);
+        if (parent_dir != NULL){
+            dir = &parent_dir;
+        }
+    }
+    const char* final_symbol = symbol;
+    return final_symbol;
+}
+//struct dir* readdir(){
+//
+//}
+
+
+/* Extracts a file name part from *SRCP into PART, and updates *SRCP so that the
+next call will return the next file name part. Returns 1 if successful, 0 at
+end of string, -1 for a too-long file name part. */
+static int get_next_part(char part[NAME_MAX + 1], const char** srcp) {
+    const char* src = *srcp;
+    char* dst = part;
+/* Skip leading slashes. If it's all slashes, we're done. */
+    while (*src == '/')
+        src++;
+    if (*src == '\0')
+        return 0;
+/* Copy up to NAME_MAX character from SRC to DST. Add null terminator. */
+    while (*src != '/' && *src != '\0') {
+        if (dst < part + NAME_MAX)
+            *dst++ = *src;
+        else
+            return -1;
+        src++;
+    }
+    *dst = '\0';
+/* Advance source pointer. */
+    *srcp = src;
+    return 1;
 }
