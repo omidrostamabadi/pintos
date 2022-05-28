@@ -106,7 +106,7 @@ struct thread
    #endif
        /* Owned by thread.c. */
    unsigned magic;                      /* Detects stack overflow. */
-   struct dir* cwd;
+   char* cwd;
    };
 struct child
   {

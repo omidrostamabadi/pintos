@@ -186,6 +186,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
 
   /* Write slot. */
   e.in_use = true;
+  e.is_dir = false;
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
@@ -260,18 +261,37 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 //}
 
 bool mkdir(const char* dir_name){
+//    if (dir_name[0] != '/'){
+//        char* dir_absolute = malloc(sizeof(dir_name)/sizeof(dir_name[0]) +
+//                sizeof(thread_current()->cwd)/sizeof((thread_current()->cwd)[0]) + 1);
+//        memcpy(dir_absolute, thread_current()->cwd, sizeof(thread_current()->cwd));
+//        memcpy(dir_absolute + sizeof(thread_current()->cwd), thread_current()->cwd, );
+//    }
+    if (strcmp(dir_name, "") == 0){
+        return false;
+    }
     block_sector_t inode_sector = 0;
     struct dir *dir = dir_open_root ();
     uint32_t group_idx = 0;
     bool success = (dir != NULL
                     && group_free_map_allocate (group_idx, 1, &inode_sector)
                     && dir_create (inode_sector, 16));
+    struct dir_entry e;
     const char* name = parse(&dir, dir_name);
+//    if (){
+//        dir_close(dir);
+//        return false;
+//    }
     success = success && dir_add (dir, name, inode_sector);
     if (!success && inode_sector != 0)
         free_map_release (inode_sector, 1);
+    struct dir* new_dir = dir_open(inode_open(inode_sector));
+    lookup(dir, name, &e, NULL);
+    e.is_dir = true;
+    dir_add(new_dir, ".", inode_sector);
+    dir_add(new_dir, "..", dir->inode->sector);
+    dir_close (new_dir);
     dir_close (dir);
-
     return success;
 
 //    block_sector_t sector;
@@ -287,7 +307,9 @@ bool mkdir(const char* dir_name){
 }
 struct dir* find_working_directory(const struct dir* cur_dir, const char* name){
     struct inode* cur_inode = NULL;
-    dir_lookup(cur_dir, name, &cur_inode);
+    if(!search_dir(cur_dir, name, &cur_inode)){
+        return NULL;
+    }
     return dir_open(cur_inode);
 }
 
@@ -297,7 +319,8 @@ const char* parse(struct dir** dir, char* input){
     while (get_next_part(symbol, &input) == 1){
         parent_dir = find_working_directory(*dir, symbol);
         if (parent_dir != NULL){
-            dir = &parent_dir;
+            dir_close(*dir);
+            *dir = parent_dir;
         }
     }
     const char* final_symbol = symbol;
@@ -331,4 +354,21 @@ static int get_next_part(char part[NAME_MAX + 1], const char** srcp) {
 /* Advance source pointer. */
     *srcp = src;
     return 1;
+}
+
+bool
+search_dir(const struct dir *dir, const char *name,
+            struct inode **inode)
+{
+    struct dir_entry e;
+
+    ASSERT (dir != NULL);
+    ASSERT (name != NULL);
+
+    if (lookup (dir, name, &e, NULL))
+        *inode = inode_open (e.inode_sector);
+    else
+        *inode = NULL;
+
+    return *inode != NULL && e.is_dir;
 }
