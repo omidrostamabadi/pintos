@@ -6,22 +6,6 @@
 #include "filesys/inode.h"
 #include "threads/malloc.h"
 #include "threads/thread.h"
-/* A directory. */
-struct dir
-  {
-    struct inode *inode;                /* Backing store. */
-    off_t pos;                          /* Current position. */
-    struct lock* dir_lock;
-  };
-
-/* A single directory entry. */
-struct dir_entry
-  {
-    block_sector_t inode_sector;        /* Sector number of header. */
-    char name[NAME_MAX + 1];            /* Null terminated file name. */
-    bool in_use;                        /* In use or free? */
-    bool is_dir;
-  };
 
 /* Creates a directory with space for ENTRY_CNT entries in the
    given SECTOR.  Returns true if successful, false on failure. */
@@ -253,9 +237,9 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   return false;
 }
 
-//bool isdir(){
-//
-//}
+bool isdir(int fd){
+    return fd > 2 && (fd % 2) == 0;
+}
 
 bool chdir(const char* dir_name){
     thread_current()->cwd = dir_name;
@@ -418,4 +402,27 @@ add_to_dir(struct dir *dir, const char *name, block_sector_t inode_sector)
 
     done:
     return success;
+}
+
+bool
+get_dir_entry(const struct dir *dir, const char *name,
+        struct dir_entry *ep, off_t *ofsp)
+{
+    struct dir_entry e;
+    size_t ofs;
+
+    ASSERT (dir != NULL);
+    ASSERT (name != NULL);
+
+    for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+         ofs += sizeof e)
+        if (e.in_use && !strcmp (name, e.name))
+        {
+            if (ep != NULL)
+                *ep = e;
+            if (ofsp != NULL)
+                *ofsp = ofs;
+            return true;
+        }
+    return false;
 }

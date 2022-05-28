@@ -24,12 +24,13 @@ void write_handler(struct intr_frame *f);
 void read_handler(struct intr_frame *f);
 void remove_handler(struct intr_frame *f);
 void open_handler(struct intr_frame *f);
-//void isdir_handler(struct intr_frame *f);
+void isdir_handler(struct intr_frame *f);
 void mkdir_handler(struct intr_frame *f);
 //void readdir_handler(struct intr_frame *f);
 //void inumber_handler(struct intr_frame *f);
 void chdir_handler(struct intr_frame *f);
 int get_free_fd ();
+int get_free_fd_for_dir();
 static struct file *get_file_from_fd (int fd);
 
 void
@@ -116,7 +117,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 //        readdir_handler(f);
         break;
     case SYS_ISDIR:
-//        isdir_handler(f);
+        isdir_handler(f);
         break;
     case SYS_INUMBER:
 //        inumber_handler(f);
@@ -124,6 +125,24 @@ syscall_handler (struct intr_frame *f UNUSED)
     default:
       break;
     }
+}
+
+void isdir_handler(struct intr_frame *f){
+    uint32_t* args = ((uint32_t*) f->esp);
+    if (!is_valid_str (args[1]))
+    {
+        exit_process (-1);
+        NOT_REACHED ();
+    }
+    if (!is_valid_ptr (&args[2], 4))
+    {
+        exit_process (-1);
+        NOT_REACHED ();
+    }
+    int fd = (int) args[1];
+    bool status = false;
+    status = isdir(fd);
+    f->eax = status;
 }
 
 void chdir_handler(struct intr_frame *f){
@@ -592,22 +611,45 @@ open_handler (struct intr_frame *f)
       NOT_REACHED ();
     }
   struct file *curr_file;
+  struct dir_entry e;
+  struct dir* curr_dir;
+  struct dir* dir = dir_open_root();
+  const char* name = parse(&dir, args[1]);
+  bool is_dir = get_dir_entry(dir, name, &e, NULL);
   sema_down (&file_sema);
-  curr_file = filesys_open (args[1]);
-  sema_up (&file_sema);
-  if (curr_file == NULL)
-    {
-      f->eax = -1;
-    }
-  else
-    {
-      struct thread *current = thread_current ();
-      struct open_file *of = (struct open_file *) malloc (sizeof (struct open_file));
-      of->this_file = curr_file;
-      of->fd = get_free_fd ();
-      list_push_back (&current->open_files, &of->file_elem);
-      f->eax = of->fd;
-    }
+  if (is_dir){
+      curr_dir = dir_open(inode_open(e.inode_sector));
+      sema_up (&file_sema);
+      if (curr_dir == NULL)
+      {
+          f->eax = -1;
+      }
+      else
+      {
+          struct thread *current = thread_current ();
+          struct open_dir *od = (struct open_dir *) malloc (sizeof (struct open_dir));
+          od->this_dir = curr_dir;
+          od->fd = get_free_fd_for_dir();
+          list_push_back (&current->open_dirs, &od->dir_elem);
+          f->eax = od->fd;
+      }
+  }else{
+      curr_file = filesys_open (args[1]);
+      sema_up (&file_sema);
+      if (curr_file == NULL)
+      {
+          f->eax = -1;
+      }
+      else
+      {
+          struct thread *current = thread_current ();
+          struct open_file *of = (struct open_file *) malloc (sizeof (struct open_file));
+          of->this_file = curr_file;
+          of->fd = get_free_fd ();
+          list_push_back (&current->open_files, &of->file_elem);
+          f->eax = of->fd;
+      }
+  }
 }
 
 /* Returns a valid file descriptor not already allocated for this thread */
@@ -620,5 +662,17 @@ int get_free_fd ()
   struct list_elem *e;
   e = list_back (&current->open_files); // Should ensure list is not empty
   struct open_file *of = list_entry (e, struct open_file, file_elem);
-  return (of->fd + 1);
+  return (of->fd + 2);
+}
+
+int get_free_fd_for_dir()
+{
+    struct thread *current = thread_current ();
+    if (list_empty (&current->open_files))
+        return 4; // 0, 1, and 2 are already allocated to STDIN, STDOUT, and STDERR
+
+    struct list_elem *e;
+    e = list_back (&current->open_files); // Should ensure list is not empty
+    struct open_file *of = list_entry (e, struct open_file, file_elem);
+    return (of->fd + 2);
 }

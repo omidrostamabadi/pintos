@@ -99,6 +99,7 @@ struct thread
    /* Owned by userprog/process.c. */
    struct file *exec_file;              /* Executable file for this process */
    struct list open_files;              /* list of open files for this thread */
+   struct list open_dirs;
    struct list children;                /* children of this thread */
    struct thread *parent;               /* parent of this process */
    bool load_status;                    /* if false, file failed to load */
@@ -123,8 +124,13 @@ struct open_file
   int fd;                              /* file descriptor of this file */
   struct file *this_file;              /* used for filesys functions */
   struct list_elem file_elem;
-};  
-
+};
+struct open_dir
+{
+    int fd;                              /* file descriptor of this dir */
+    struct dir* this_dir;              /* used for filesys functions */
+    struct list_elem dir_elem;
+};
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
