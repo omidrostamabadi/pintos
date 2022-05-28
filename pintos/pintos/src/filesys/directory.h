@@ -33,4 +33,6 @@ struct dir* find_working_directory(const struct dir* cur_dir, const char* name);
 bool
 search_dir(const struct dir *dir, const char *name,
            struct inode **inode);
+bool
+add_to_dir(struct dir *dir, const char *name, block_sector_t inode_sector);
 #endif /* filesys/directory.h */

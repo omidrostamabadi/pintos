@@ -167,7 +167,8 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   /* Check NAME for validity. */
   if (*name == '\0' || strlen (name) > NAME_MAX)
     return false;
-
+  const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
+  strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
   /* Check that NAME is not in use. */
   if (lookup (dir, name, NULL, NULL))
     goto done;
@@ -187,7 +188,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   /* Write slot. */
   e.in_use = true;
   e.is_dir = false;
-  strlcpy (e.name, name, sizeof e.name);
+  strlcpy (e.name, name_copy, sizeof e.name);
   e.inode_sector = inode_sector;
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
 
@@ -256,9 +257,11 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 //
 //}
 
-//void chdir(){
-//
-//}
+bool chdir(const char* dir_name){
+    thread_current()->cwd = dir_name;
+    /// TODO: Handle special cases later
+    return true;
+}
 
 bool mkdir(const char* dir_name){
 //    if (dir_name[0] != '/'){
@@ -282,14 +285,16 @@ bool mkdir(const char* dir_name){
 //        dir_close(dir);
 //        return false;
 //    }
-    success = success && dir_add (dir, name, inode_sector);
+    const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
+    strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
+    success = success && add_to_dir(dir, name, inode_sector);
     if (!success && inode_sector != 0)
         free_map_release (inode_sector, 1);
     struct dir* new_dir = dir_open(inode_open(inode_sector));
-    lookup(dir, name, &e, NULL);
-    e.is_dir = true;
-    dir_add(new_dir, ".", inode_sector);
-    dir_add(new_dir, "..", dir->inode->sector);
+//    lookup(dir, name_copy, &e, NULL);
+//    e.is_dir = true;
+    add_to_dir(new_dir, ".", inode_sector);
+    add_to_dir(new_dir, "..", dir->inode->sector);
     dir_close (new_dir);
     dir_close (dir);
     return success;
@@ -371,4 +376,46 @@ search_dir(const struct dir *dir, const char *name,
         *inode = NULL;
 
     return *inode != NULL && e.is_dir;
+}
+
+bool
+add_to_dir(struct dir *dir, const char *name, block_sector_t inode_sector)
+{
+    struct dir_entry e;
+    off_t ofs;
+    bool success = false;
+
+    ASSERT (dir != NULL);
+    ASSERT (name != NULL);
+
+    /* Check NAME for validity. */
+    if (*name == '\0' || strlen (name) > NAME_MAX)
+        return false;
+    const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
+    strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
+    /* Check that NAME is not in use. */
+    if (lookup (dir, name, NULL, NULL))
+        goto done;
+
+    /* Set OFS to offset of free slot.
+       If there are no free slots, then it will be set to the
+       current end-of-file.
+
+       inode_read_at() will only return a short read at end of file.
+       Otherwise, we'd need to verify that we didn't get a short
+       read due to something intermittent such as low memory. */
+    for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+         ofs += sizeof e)
+        if (!e.in_use)
+            break;
+
+    /* Write slot. */
+    e.in_use = true;
+    e.is_dir = true;
+    strlcpy (e.name, name_copy, sizeof e.name);
+    e.inode_sector = inode_sector;
+    success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+
+    done:
+    return success;
 }
