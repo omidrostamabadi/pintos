@@ -265,6 +265,7 @@ bool mkdir(const char* dir_name){
                     && dir_create (inode_sector, 16));
     struct dir_entry e;
     // struct dir *parent_dir = calloc (1, sizeof (struct dir));
+
     const char* name = parse(root_dir, dir_name);
 //    if (){
 //        dir_close(dir);
@@ -313,7 +314,7 @@ const char* parse(struct dir *parent_dir, char* input){
         if(parent_dir == NULL){
             break;
         }
-        dir_close(gp_dir);
+//        dir_close(gp_dir);
     }
     parent_dir = gp_dir;
     const char* final_symbol = symbol;
@@ -417,10 +418,11 @@ get_dir_entry(const struct dir *dir, const char *name,
 
     ASSERT (dir != NULL);
     ASSERT (name != NULL);
-
+    const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
+    strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
     for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
          ofs += sizeof e)
-        if (e.in_use && !strcmp (name, e.name))
+        if (e.in_use && !strcmp (name_copy, e.name))
         {
             if (ep != NULL)
                 *ep = e;

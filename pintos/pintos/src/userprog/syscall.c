@@ -453,6 +453,26 @@ get_file_from_fd (int fd)
     return NULL;
 }
 
+static struct file *
+get_file_from_dir_fd (int fd)
+{
+    struct thread *current = thread_current ();
+    struct list_elem *e;
+    for (e = list_begin (&current->open_dirs); e != list_end (&current->open_dirs);
+         e = list_next (e))
+    {
+        struct open_dir *od = list_entry (e, struct open_dir, dir_elem);
+        if (od->fd == fd)
+        {
+            return od->this_dir;
+        }
+    }
+
+    /* When reach here, fd cannot be found */
+    return NULL;
+}
+
+
 void
 create_handler (struct intr_frame *f)
 {
@@ -527,10 +547,13 @@ write_handler(struct intr_frame *f)
             write_size = buffer_size;
             break;
         default:
-            fds = get_file_from_fd(file_des);
+            if(file_des%2==0&&file_des>2)
+                fds = get_file_from_dir_fd(file_des);
+            else
+                fds = get_file_from_fd(file_des);
             if (fds != NULL)
               {
-                if(file_des%2!=0)
+                if(file_des%2!=0&&file_des>2)
                     write_size = file_write(fds, buffer, buffer_size);
                 else{
                     write_size=-1;
@@ -620,10 +643,11 @@ open_handler (struct intr_frame *f)
   struct dir_entry e;
   struct dir* curr_dir;
   struct dir* dir = dir_open_root();
+
   const char* name = parse(dir, args[1]);
   bool is_dir = get_dir_entry(dir, name, &e, NULL);
   sema_down (&file_sema);
-  if (is_dir){
+  if (is_dir && e.is_dir){
       curr_dir = dir_open(inode_open(e.inode_sector));
       sema_up (&file_sema);
       if (curr_dir == NULL)
@@ -656,6 +680,7 @@ open_handler (struct intr_frame *f)
           f->eax = of->fd;
       }
   }
+
 }
 
 /* Returns a valid file descriptor not already allocated for this thread */
@@ -674,11 +699,11 @@ int get_free_fd ()
 int get_free_fd_for_dir()
 {
     struct thread *current = thread_current ();
-    if (list_empty (&current->open_files))
+    if (list_empty (&current->open_dirs))
         return 4; // 0, 1, and 2 are already allocated to STDIN, STDOUT, and STDERR
 
     struct list_elem *e;
-    e = list_back (&current->open_files); // Should ensure list is not empty
-    struct open_file *of = list_entry (e, struct open_file, file_elem);
-    return (of->fd + 2);
+    e = list_back (&current->open_dirs); // Should ensure list is not empty
+    struct open_dir *od = list_entry (e, struct open_dir, dir_elem);
+    return (od->fd + 2);
 }
