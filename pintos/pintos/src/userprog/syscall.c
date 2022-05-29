@@ -535,7 +535,12 @@ write_handler(struct intr_frame *f)
             fds = get_file_from_fd(file_des);
             if (fds != NULL)
               {
-                write_size = file_write(fds, buffer, buffer_size);
+                if(file_des%2!=0)
+                    write_size = file_write(fds, buffer, buffer_size);
+                else{
+                    write_size=-1;
+                    break;
+                }
               }
 
             break;
@@ -592,7 +597,13 @@ read_handler(struct intr_frame *f)
             fds = get_file_from_fd(file_des);
             if (fds != NULL)
               {
-                read_size = file_read(fds, buffer, buffer_size);
+                if(file_des%2!=0)
+                    read_size = file_read(fds, buffer, buffer_size);
+                else{
+                    read_size=-1;
+                    break;
+                }
+
               }
             break;
 
