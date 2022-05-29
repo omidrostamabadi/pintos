@@ -169,11 +169,6 @@ void mkdir_handler(struct intr_frame *f){
         exit_process (-1);
         NOT_REACHED ();
     }
-    if (!is_valid_ptr (&args[2], 4))
-    {
-        exit_process (-1);
-        NOT_REACHED ();
-    }
     const char* dir_name = (const char*) args[1];
     bool status = false;
     status = mkdir(dir_name);
