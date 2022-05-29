@@ -7,6 +7,8 @@
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "devices/block.h"
+
 #include "filesys/directory.h"
 static void syscall_handler (struct intr_frame *);
 
@@ -114,6 +116,13 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_ISDIR:
         isdir_handler(f);
         break;
+      break;
+    case SYS_BLOCK_READ_COUNT:
+      block_read_count_handler (f);
+      break;
+    case SYS_BLOCK_WRITE_COUNT:
+      block_write_count_handler (f);
+      break;
     default:
       break;
     }
@@ -714,4 +723,15 @@ int get_free_fd_for_dir()
     e = list_back (&current->open_dirs); // Should ensure list is not empty
     struct open_dir *od = list_entry (e, struct open_dir, dir_elem);
     return (od->fd + 2);
+}
+void
+block_read_count_handler (struct intr_frame *f)
+{
+    f->eax = (unsigned) fs_device->read_cnt;
+}
+
+void
+block_write_count_handler (struct intr_frame *f)
+{
+    f->eax = (unsigned) fs_device->write_cnt;
 }

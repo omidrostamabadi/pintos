@@ -50,4 +50,8 @@ int inumber (int fd);
 /* Homework 5, Part B. */
 void* sbrk (intptr_t increment);
 
+/* Buffer cache tests */
+unsigned block_read_count (void);
+unsigned block_write_count (void);
+
 #endif /* lib/user/syscall.h */

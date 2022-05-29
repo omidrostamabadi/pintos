@@ -11,6 +11,7 @@
 #include "threads/thread.h"
 /* Ignore caching system. Kept for comparison */
 //#define CACHE_BYPASS
+
 #define CLOCK_CHANCES 2
 
 /* Identifies an inode. */
