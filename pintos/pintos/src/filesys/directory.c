@@ -269,8 +269,8 @@ bool mkdir(const char* dir_name){
 //        dir_close(dir);
 //        return false;
 //    }
-    const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
-    strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
+//    const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
+//    strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
     success = success && add_to_dir(dir, name, inode_sector);
     if (!success && inode_sector != 0)
         free_map_release (inode_sector, 1);
@@ -303,15 +303,18 @@ struct dir* find_working_directory(const struct dir* cur_dir, const char* name){
 }
 
 const char* parse(struct dir** dir, char* input){
-    struct dir* parent_dir;
+    struct dir* parent_dir,grandparent_dir;
     char symbol[NAME_MAX + 1];
+    parent_dir=*dir;
     while (get_next_part(symbol, &input) == 1){
-        parent_dir = find_working_directory(*dir, symbol);
-        if (parent_dir != NULL){
-            dir_close(*dir);
-            *dir = parent_dir;
+        grandparent_dir=*parent_dir;
+        parent_dir = find_working_directory(&grandparent_dir, symbol);
+        if(parent_dir == NULL){
+            break;
         }
+        dir_close(&grandparent_dir);
     }
+    *dir=&grandparent_dir;
     const char* final_symbol = symbol;
     return final_symbol;
 }
@@ -372,11 +375,11 @@ add_to_dir(struct dir *dir, const char *name, block_sector_t inode_sector)
     ASSERT (dir != NULL);
     ASSERT (name != NULL);
 
+    const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
+    strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
     /* Check NAME for validity. */
     if (*name == '\0' || strlen (name) > NAME_MAX)
         return false;
-    const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
-    strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
     /* Check that NAME is not in use. */
     if (lookup (dir, name, NULL, NULL))
         goto done;
