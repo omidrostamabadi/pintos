@@ -644,7 +644,7 @@ open_handler (struct intr_frame *f)
   struct dir* curr_dir;
   struct dir* dir = dir_open_root();
   const char* addr = (char*)args[1];
-    char* dir_absolute= malloc(strlen(addr) + strlen(thread_current()->cwd)+1);
+    char dir_absolute[128];
   if (addr[0] != '/'){
       strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
       strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
