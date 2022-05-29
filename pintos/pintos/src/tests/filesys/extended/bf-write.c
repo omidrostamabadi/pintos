@@ -5,7 +5,7 @@
 
 #define BUF_SIZE 10 * 512
 #define BUFFER_C_SIZE 200 * 512
-#define CHUNK_SIZE 512
+#define CHUNK_SIZE 1
 
 char buf[BUF_SIZE];
 char big_buf[BUFFER_C_SIZE];
