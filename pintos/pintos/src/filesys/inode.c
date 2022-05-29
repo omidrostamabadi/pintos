@@ -10,7 +10,7 @@
 #include "filesys/directory.h"
 #include "threads/thread.h"
 /* Ignore caching system. Kept for comparison */
-//#define CACHE_BYPASS
+#define CACHE_BYPASS
 //#define NO_CLOCK_ALG
 #define CLOCK_CHANCES 2
 

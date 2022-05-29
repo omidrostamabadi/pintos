@@ -46,7 +46,7 @@ bool mkdir(const char* dir_name);
 bool isdir(int fd);
 bool chdir(const char* dir_name);
 static int get_next_part(char part[NAME_MAX + 1], const char** srcp);
-const char* parse(struct dir** dir, char* input);
+const char* parse(struct dir* dir, char* input);
 struct dir* find_working_directory(const struct dir* cur_dir, const char* name);
 bool
 search_dir(const struct dir *dir, const char *name,

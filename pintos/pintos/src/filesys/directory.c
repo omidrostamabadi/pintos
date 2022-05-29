@@ -258,29 +258,30 @@ bool mkdir(const char* dir_name){
         return false;
     }
     block_sector_t inode_sector = 0;
-    struct dir *dir = dir_open_root ();
+    struct dir *root_dir = dir_open_root ();
     uint32_t group_idx = 0;
-    bool success = (dir != NULL
+    bool success = (root_dir != NULL
                     && group_free_map_allocate (group_idx, 1, &inode_sector)
                     && dir_create (inode_sector, 16));
     struct dir_entry e;
-    const char* name = parse(&dir, dir_name);
+    // struct dir *parent_dir = calloc (1, sizeof (struct dir));
+    const char* name = parse(root_dir, dir_name);
 //    if (){
 //        dir_close(dir);
 //        return false;
 //    }
 //    const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
 //    strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
-    success = success && add_to_dir(dir, name, inode_sector);
+    success = success && add_to_dir(root_dir, name, inode_sector);
     if (!success && inode_sector != 0)
         free_map_release (inode_sector, 1);
     struct dir* new_dir = dir_open(inode_open(inode_sector));
 //    lookup(dir, name_copy, &e, NULL);
 //    e.is_dir = true;
     add_to_dir(new_dir, ".", inode_sector);
-    add_to_dir(new_dir, "..", dir->inode->sector);
+    add_to_dir(new_dir, "..", root_dir->inode->sector);
     dir_close (new_dir);
-    dir_close (dir);
+    dir_close (root_dir);
     return success;
 
 //    block_sector_t sector;
@@ -302,19 +303,19 @@ struct dir* find_working_directory(const struct dir* cur_dir, const char* name){
     return dir_open(cur_inode);
 }
 
-const char* parse(struct dir** dir, char* input){
-    struct dir* parent_dir,grandparent_dir;
+const char* parse(struct dir *parent_dir, char* input){
     char symbol[NAME_MAX + 1];
-    parent_dir=*dir;
+    // *parent_dir = *root_dir;
+    struct dir *gp_dir;
     while (get_next_part(symbol, &input) == 1){
-        grandparent_dir=*parent_dir;
-        parent_dir = find_working_directory(&grandparent_dir, symbol);
+        gp_dir = parent_dir;
+        parent_dir = find_working_directory(gp_dir, symbol);
         if(parent_dir == NULL){
             break;
         }
-        dir_close(&grandparent_dir);
+        dir_close(gp_dir);
     }
-    *dir=&grandparent_dir;
+    parent_dir = gp_dir;
     const char* final_symbol = symbol;
     return final_symbol;
 }

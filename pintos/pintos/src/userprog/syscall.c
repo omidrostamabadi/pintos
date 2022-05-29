@@ -620,7 +620,7 @@ open_handler (struct intr_frame *f)
   struct dir_entry e;
   struct dir* curr_dir;
   struct dir* dir = dir_open_root();
-  const char* name = parse(&dir, args[1]);
+  const char* name = parse(dir, args[1]);
   bool is_dir = get_dir_entry(dir, name, &e, NULL);
   sema_down (&file_sema);
   if (is_dir){
