@@ -54,6 +54,8 @@ filesys_create (const char *name, off_t initial_size)
         strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
         strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
         strlcat(dir_absolute, name,sizeof (dir_absolute)+1 );
+    }else{
+        strlcpy(dir_absolute , name,sizeof(dir_absolute)+1 );
     }
 
     if(strcmp(dir_absolute,"//")==0){
@@ -83,10 +85,23 @@ struct file *
 filesys_open (const char *name)
 {
   struct dir *dir = dir_open_root ();
-  struct inode *inode = NULL;
+    char dir_absolute[128];
+    if (name[0] != '/'){
+        strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
+        strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
+        strlcat(dir_absolute, name,sizeof (dir_absolute)+1 );
+    }else{
+        strlcpy(dir_absolute , name,sizeof(dir_absolute)+1 );
+    }
 
+    if(strcmp(dir_absolute,"//")==0){
+        dir_close (dir);
+        return false;
+    }
+  struct inode *inode = NULL;
+    const char* final_name = parse(dir, dir_absolute);
   if (dir != NULL)
-    dir_lookup (dir, name, &inode);
+    dir_lookup (dir, final_name, &inode);
   dir_close (dir);
 
   return file_open (inode);

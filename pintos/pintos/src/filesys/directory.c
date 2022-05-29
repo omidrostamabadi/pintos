@@ -256,6 +256,8 @@ bool mkdir(const char* dir_name){
         strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
         strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
         strlcat(dir_absolute, dir_name,sizeof (dir_absolute)+1 );
+    }else{
+        strlcpy(dir_absolute , dir_name,sizeof(dir_absolute)+1 );
     }
     block_sector_t inode_sector = 0;
     struct dir *root_dir = dir_open_root ();

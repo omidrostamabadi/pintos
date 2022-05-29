@@ -649,6 +649,8 @@ open_handler (struct intr_frame *f)
       strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
       strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
       strlcat(dir_absolute, addr,sizeof (dir_absolute)+1 );
+  }else{
+      strlcpy(dir_absolute , addr,sizeof(dir_absolute)+1 );
   }
   const char* name = parse(dir, dir_absolute);
   bool is_dir = get_dir_entry(dir, name, &e, NULL);
