@@ -67,7 +67,8 @@ filesys_create (const char *name, off_t initial_size)
                   && group_free_map_allocate (group_idx, 1, &inode_sector)
                   && inode_create (inode_sector, initial_size)
                   );
-    const char* final_name = parse(dir, dir_absolute);
+  char final_name[NAME_MAX+1];
+  parse(dir, dir_absolute,final_name);
     success = success && dir_add (dir, final_name, inode_sector);
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, 1);
@@ -99,7 +100,8 @@ filesys_open (const char *name)
         return false;
     }
   struct inode *inode = NULL;
-    const char* final_name = parse(dir, dir_absolute);
+    char final_name[NAME_MAX + 1];
+    parse(dir, dir_absolute,final_name);
   if (dir != NULL)
     dir_lookup (dir, final_name, &inode);
   dir_close (dir);

@@ -242,9 +242,25 @@ bool isdir(int fd){
 }
 
 bool chdir(const char* dir_name){
-    thread_current()->cwd = dir_name;
-    /// TODO: Handle special cases later
-    return true;
+    struct dir *root_dir = dir_open_root ();
+    char dir_absolute[128];
+    if (dir_name[0] != '/'){
+        strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
+        strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
+        strlcat(dir_absolute, dir_name,sizeof (dir_absolute)+1 );
+    }else{
+        strlcpy(dir_absolute , dir_name,sizeof(dir_absolute)+1 );
+    }
+    const char name_copy[128];
+    strlcpy(name_copy, dir_absolute,sizeof (name_copy)+1);
+    char name[NAME_MAX + 1];
+    parse(root_dir, dir_absolute,name);
+    if(lookup(root_dir, name, NULL, NULL)) {
+        thread_current()->cwd = dir_name;
+        return true;
+    }else{
+        return false;
+    }
 }
 
 bool mkdir(const char* dir_name){
@@ -267,15 +283,10 @@ bool mkdir(const char* dir_name){
                     && dir_create (inode_sector, 16));
     struct dir_entry e;
     // struct dir *parent_dir = calloc (1, sizeof (struct dir));
-
-    const char* name = parse(root_dir, dir_absolute);
-//    if (){
-//        dir_close(dir);
-//        return false;
-//    }
-//    const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
-//    strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
-    success = success && add_to_dir(root_dir, name, inode_sector);
+    char symbol[NAME_MAX + 1];
+    parse(root_dir, dir_absolute,symbol);
+//    const char* name =
+    success = success && add_to_dir(root_dir, (const char*)symbol, inode_sector);
     if (!success && inode_sector != 0)
         free_map_release (inode_sector, 1);
     struct dir* new_dir = dir_open(inode_open(inode_sector));
@@ -306,8 +317,7 @@ struct dir* find_working_directory(const struct dir* cur_dir, const char* name){
     return dir_open(cur_inode);
 }
 
-const char* parse(struct dir *parent_dir, char* input){
-    char symbol[NAME_MAX + 1];
+void parse(struct dir *parent_dir, char* input,char symbol[NAME_MAX + 1]){
     // *parent_dir = *root_dir;
     struct dir *gp_dir;
     while (get_next_part(symbol, &input) == 1){
@@ -319,8 +329,8 @@ const char* parse(struct dir *parent_dir, char* input){
 //        dir_close(gp_dir);
     }
     parent_dir = gp_dir;
-    const char* final_symbol = symbol;
-    return final_symbol;
+//    const char* final_symbol = symbol;
+//    return final_symbol;
 }
 //struct dir* readdir(){
 //

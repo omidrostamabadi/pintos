@@ -652,7 +652,8 @@ open_handler (struct intr_frame *f)
   }else{
       strlcpy(dir_absolute , addr,sizeof(dir_absolute)+1 );
   }
-  const char* name = parse(dir, dir_absolute);
+  char name[NAME_MAX+1];
+  parse(dir, dir_absolute,name);
   bool is_dir = get_dir_entry(dir, name, &e, NULL);
   sema_down (&file_sema);
   if (is_dir && e.is_dir){
