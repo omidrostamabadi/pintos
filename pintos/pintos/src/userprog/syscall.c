@@ -578,11 +578,11 @@ int get_free_fd ()
 void
 block_read_count_handler (struct intr_frame *f)
 {
-  f->eax = fs_device->read_cnt;
+  f->eax = (unsigned) fs_device->read_cnt;
 }
 
 void
 block_write_count_handler (struct intr_frame *f)
 {
-  f->eax = fs_device->write_cnt;
+  f->eax = (unsigned) fs_device->write_cnt;
 }

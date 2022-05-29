@@ -198,13 +198,13 @@ sbrk (intptr_t increment)
   return NULL;
 }
 
-unsigned long long
+unsigned
 block_read_count (void)
 {
   return syscall0 (SYS_BLOCK_READ_COUNT);
 }
 
-unsigned long long
+unsigned
 block_write_count (void)
 {
   return syscall0 (SYS_BLOCK_WRITE_COUNT);

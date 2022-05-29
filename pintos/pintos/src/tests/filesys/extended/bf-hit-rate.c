@@ -3,7 +3,7 @@
 #include "tests/lib.h"
 #include "tests/main.h"
 
-#define BUF_SIZE 10 * 512
+#define BUF_SIZE 20 * 512
 #define BUFFER_C_SIZE 64 * 512
 #define CHUNK_SIZE 512
 
@@ -36,9 +36,11 @@ test_main (void)
   size_t ofs;
   int fd;
   
-  unsigned long long read_cnt1, read_cnt2, read_cnt3, read_cnt4;
+  unsigned read_cnt1, read_cnt2, read_cnt3, read_cnt4;
   
-  CHECK (create (file_name2, 0), "create \"%s\"", file_name2;
+  CHECK (create (file_name, 0), "create \"%s\"", file_name);
+
+  CHECK (create (file_name2, 0), "create \"%s\"", file_name2);
   CHECK ((fd = open (file_name2)) > 1, "open \"%s\"", file_name2);
   
   random_bytes (buf, sizeof buf);
@@ -87,6 +89,21 @@ test_main (void)
   read_cnt4 = block_read_count ();
   
   close (fd);
+
+  unsigned wo_cache, w_cache;
+  wo_cache = read_cnt2 - read_cnt1;
+  w_cache = read_cnt4 - read_cnt3;
+
+  if (w_cache < wo_cache - 10)
+    {
+      msg ("cache ok");
+    }
+  else
+    {
+      msg ("cache not ok");
+    }
+  // msg ("User test finished. a:%u b:%u c:%u d:%u", 
+  // read_cnt1, read_cnt2, read_cnt3, read_cnt4);
 
   /*random_bytes (buf, sizeof buf);
   quiet = true;

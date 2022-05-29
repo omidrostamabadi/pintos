@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <inttypes.h>
+#include <list.h>
 
 /* Size of a block device sector in bytes.
    All IDE disks use this sector size, as do most USB and SCSI
@@ -19,6 +20,23 @@ typedef uint32_t block_sector_t;
 #define PRDSNu PRIu32
 
 /* Higher-level interface for file systems, etc. */
+
+/* Type of a block device. */
+enum block_type
+  {
+    /* Block device types that play a role in Pintos. */
+    BLOCK_KERNEL,                /* Pintos OS kernel. */
+    BLOCK_FILESYS,               /* File system. */
+    BLOCK_SCRATCH,               /* Scratch. */
+    BLOCK_SWAP,                  /* Swap. */
+    BLOCK_ROLE_CNT,
+
+    /* Other kinds of block devices that Pintos may see but does
+       not interact with. */
+    BLOCK_RAW = BLOCK_ROLE_CNT,  /* "Raw" device with unidentified contents. */
+    BLOCK_FOREIGN,               /* Owned by non-Pintos operating system. */
+    BLOCK_CNT                    /* Number of Pintos block types. */
+  };
 
 /* A block device. */
 struct block
@@ -37,23 +55,6 @@ struct block
   };
 
 // struct block;
-
-/* Type of a block device. */
-enum block_type
-  {
-    /* Block device types that play a role in Pintos. */
-    BLOCK_KERNEL,                /* Pintos OS kernel. */
-    BLOCK_FILESYS,               /* File system. */
-    BLOCK_SCRATCH,               /* Scratch. */
-    BLOCK_SWAP,                  /* Swap. */
-    BLOCK_ROLE_CNT,
-
-    /* Other kinds of block devices that Pintos may see but does
-       not interact with. */
-    BLOCK_RAW = BLOCK_ROLE_CNT,  /* "Raw" device with unidentified contents. */
-    BLOCK_FOREIGN,               /* Owned by non-Pintos operating system. */
-    BLOCK_CNT                    /* Number of Pintos block types. */
-  };
 
 const char *block_type_name (enum block_type);
 
