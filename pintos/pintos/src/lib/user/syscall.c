@@ -197,3 +197,15 @@ sbrk (intptr_t increment)
   /* Homework 5, Part B: YOUR CODE HERE */
   return NULL;
 }
+
+unsigned long long
+block_read_count (void)
+{
+  return syscall0 (SYS_BLOCK_READ_COUNT);
+}
+
+unsigned long long
+block_write_count (void)
+{
+  return syscall0 (SYS_BLOCK_WRITE_COUNT);
+}

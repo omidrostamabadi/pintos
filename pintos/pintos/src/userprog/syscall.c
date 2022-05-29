@@ -7,6 +7,7 @@
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "devices/block.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -100,6 +101,12 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
     case SYS_OPEN:
       open_handler(f);
+      break;
+    case SYS_BLOCK_READ_COUNT:
+      block_read_count_handler (f);
+      break;
+    case SYS_BLOCK_WRITE_COUNT:
+      block_write_count_handler (f);
       break; 
     default:
       break;
@@ -566,4 +573,16 @@ int get_free_fd ()
   e = list_back (&current->open_files); // Should ensure list is not empty
   struct open_file *of = list_entry (e, struct open_file, file_elem);
   return (of->fd + 1);
+}
+
+void
+block_read_count_handler (struct intr_frame *f)
+{
+  f->eax = fs_device->read_cnt;
+}
+
+void
+block_write_count_handler (struct intr_frame *f)
+{
+  f->eax = fs_device->write_cnt;
 }
