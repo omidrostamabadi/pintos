@@ -643,8 +643,14 @@ open_handler (struct intr_frame *f)
   struct dir_entry e;
   struct dir* curr_dir;
   struct dir* dir = dir_open_root();
-
-  const char* name = parse(dir, args[1]);
+  const char* addr = (char*)args[1];
+    char* dir_absolute= malloc(strlen(addr) + strlen(thread_current()->cwd)+1);
+  if (addr[0] != '/'){
+      strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
+      strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
+      strlcat(dir_absolute, addr,sizeof (dir_absolute)+1 );
+  }
+  const char* name = parse(dir, dir_absolute);
   bool is_dir = get_dir_entry(dir, name, &e, NULL);
   sema_down (&file_sema);
   if (is_dir && e.is_dir){

@@ -248,14 +248,14 @@ bool chdir(const char* dir_name){
 }
 
 bool mkdir(const char* dir_name){
-//    if (dir_name[0] != '/'){
-//        char* dir_absolute = malloc(sizeof(dir_name)/sizeof(dir_name[0]) +
-//                sizeof(thread_current()->cwd)/sizeof((thread_current()->cwd)[0]) + 1);
-//        memcpy(dir_absolute, thread_current()->cwd, sizeof(thread_current()->cwd));
-//        memcpy(dir_absolute + sizeof(thread_current()->cwd), thread_current()->cwd, );
-//    }
     if (strcmp(dir_name, "") == 0){
         return false;
+    }
+    char dir_absolute[128];
+    if (dir_name[0] != '/'){
+        strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
+        strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
+        strlcat(dir_absolute, dir_name,sizeof (dir_absolute)+1 );
     }
     block_sector_t inode_sector = 0;
     struct dir *root_dir = dir_open_root ();
@@ -266,7 +266,7 @@ bool mkdir(const char* dir_name){
     struct dir_entry e;
     // struct dir *parent_dir = calloc (1, sizeof (struct dir));
 
-    const char* name = parse(root_dir, dir_name);
+    const char* name = parse(root_dir, dir_absolute);
 //    if (){
 //        dir_close(dir);
 //        return false;

@@ -430,13 +430,13 @@ inode_init (void)
   lock_init (&cache_lock);
   list_init (&busy_sectors);
 
+  thread_current()->cwd = "/";
   for (int i = 0; i < CACHE_ELEMENTS; i++)
     {
       lock_init (& (cache_entries[i].busy_lock) );
       cache_entries[i].dirty = 0;
       cache_entries[i].is_busy = 0;
     }
-  thread_current()->cwd = "";
 }
 
 uint32_t find_preferred_group(block_sector_t sector) {

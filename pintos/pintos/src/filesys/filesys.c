@@ -6,6 +6,7 @@
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
 #include "filesys/directory.h"
+#include "threads/thread.h"
 
 /* Partition that contains the file system. */
 struct block *fs_device;
@@ -47,12 +48,25 @@ bool
 filesys_create (const char *name, off_t initial_size)
 {
   block_sector_t inode_sector = 0;
-  struct dir *dir = dir_open_root ();
+    struct dir* dir = dir_open_root();
+    char dir_absolute[128];
+    if (name[0] != '/'){
+        strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
+        strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
+        strlcat(dir_absolute, name,sizeof (dir_absolute)+1 );
+    }
+
+    if(strcmp(dir_absolute,"//")==0){
+        dir_close (dir);
+        return false;
+    }
   uint32_t group_idx = find_preferred_group (inode_sector);
   bool success = (dir != NULL
                   && group_free_map_allocate (group_idx, 1, &inode_sector)
                   && inode_create (inode_sector, initial_size)
-                  && dir_add (dir, name, inode_sector));
+                  );
+    const char* final_name = parse(dir, dir_absolute);
+    success = success && dir_add (dir, final_name, inode_sector);
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, 1);
   dir_close (dir);
