@@ -26,8 +26,6 @@ void remove_handler(struct intr_frame *f);
 void open_handler(struct intr_frame *f);
 void isdir_handler(struct intr_frame *f);
 void mkdir_handler(struct intr_frame *f);
-//void readdir_handler(struct intr_frame *f);
-//void inumber_handler(struct intr_frame *f);
 void chdir_handler(struct intr_frame *f);
 int get_free_fd ();
 int get_free_fd_for_dir();
@@ -113,14 +111,8 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_MKDIR:
         mkdir_handler(f);
         break;
-    case SYS_READDIR:
-//        readdir_handler(f);
-        break;
     case SYS_ISDIR:
         isdir_handler(f);
-        break;
-    case SYS_INUMBER:
-//        inumber_handler(f);
         break;
     default:
       break;
@@ -654,7 +646,14 @@ open_handler (struct intr_frame *f)
   }
   char name[NAME_MAX+1];
   parse(dir, dir_absolute,name);
-  bool is_dir = get_dir_entry(dir, name, &e, NULL);
+  bool is_dir;
+  if(strcmp(dir_absolute,"/")==0){
+      is_dir=true;
+      e.is_dir=true;
+      e.inode_sector = ROOT_DIR_SECTOR;
+  }else {
+      is_dir = get_dir_entry(dir, name, &e, NULL);
+  }
   sema_down (&file_sema);
   if (is_dir && e.is_dir){
       curr_dir = dir_open(inode_open(e.inode_sector));

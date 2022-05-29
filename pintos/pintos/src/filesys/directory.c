@@ -238,165 +238,141 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 }
 
 bool isdir(int fd){
-    return fd > 2 && (fd % 2) == 0;
+  return fd > 2 && (fd % 2) == 0;
 }
 
 bool chdir(const char* dir_name){
-    struct dir *root_dir = dir_open_root ();
-    char dir_absolute[128];
-    if (dir_name[0] != '/'){
-        strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
-        strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
-        strlcat(dir_absolute, dir_name,sizeof (dir_absolute)+1 );
-    }else{
-        strlcpy(dir_absolute , dir_name,sizeof(dir_absolute)+1 );
-    }
-    const char name_copy[128];
-    strlcpy(name_copy, dir_absolute,sizeof (name_copy)+1);
-    char name[NAME_MAX + 1];
-    parse(root_dir, dir_absolute,name);
-    if(lookup(root_dir, name, NULL, NULL)) {
-        thread_current()->cwd = dir_name;
-        return true;
-    }else{
-        return false;
-    }
+  struct dir *root_dir = dir_open_root ();
+  char dir_absolute[128];
+  if (dir_name[0] != '/'){
+      strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
+      strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
+      strlcat(dir_absolute, dir_name,sizeof (dir_absolute)+1 );
+  }else{
+      strlcpy(dir_absolute , dir_name,sizeof(dir_absolute)+1 );
+  }
+  const char name_copy[128];
+  strlcpy(name_copy, dir_absolute,sizeof (name_copy)+1);
+  char name[NAME_MAX + 1];
+  parse(root_dir, dir_absolute,name);
+  if(lookup(root_dir, name, NULL, NULL)) {
+      thread_current()->cwd = dir_name;
+      return true;
+  }else{
+      return false;
+  }
 }
 
 bool mkdir(const char* dir_name){
-    if (strcmp(dir_name, "") == 0){
-        return false;
-    }
-    char dir_absolute[128];
-    if (dir_name[0] != '/'){
-        strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
-        strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
-        strlcat(dir_absolute, dir_name,sizeof (dir_absolute)+1 );
-    }else{
-        strlcpy(dir_absolute , dir_name,sizeof(dir_absolute)+1 );
-    }
-    block_sector_t inode_sector = 0;
-    struct dir *root_dir = dir_open_root ();
-    uint32_t group_idx = 0;
-    bool success = (root_dir != NULL
-                    && group_free_map_allocate (group_idx, 1, &inode_sector)
-                    && dir_create (inode_sector, 16));
-    struct dir_entry e;
-    // struct dir *parent_dir = calloc (1, sizeof (struct dir));
-    char symbol[NAME_MAX + 1];
-    parse(root_dir, dir_absolute,symbol);
-//    const char* name =
-    success = success && add_to_dir(root_dir, (const char*)symbol, inode_sector);
-    if (!success && inode_sector != 0)
-        free_map_release (inode_sector, 1);
-    struct dir* new_dir = dir_open(inode_open(inode_sector));
-//    lookup(dir, name_copy, &e, NULL);
-//    e.is_dir = true;
-    add_to_dir(new_dir, ".", inode_sector);
-    add_to_dir(new_dir, "..", root_dir->inode->sector);
-    dir_close (new_dir);
-    dir_close (root_dir);
-    return success;
-
-//    block_sector_t sector;
-//    thread_current()->cwd = dir_open_root();
-//    if (!dir_create(sector, 16)){
-//     return false;
-//    }
-////    const char* name = (const char*) parse(dir);
-//    if (!dir_add(thread_current()->cwd, parse(dir), sector)){
-//     return false;
-//    }
-//    return true;
+  if (strcmp(dir_name, "") == 0){
+      return false;
+  }
+  char dir_absolute[128];
+  if (dir_name[0] != '/'){
+      strlcpy(dir_absolute , thread_current()->cwd,sizeof(dir_absolute)+1 );
+      strlcat(dir_absolute, "/",sizeof (dir_absolute)+1 );
+      strlcat(dir_absolute, dir_name,sizeof (dir_absolute)+1 );
+  }else{
+      strlcpy(dir_absolute , dir_name,sizeof(dir_absolute)+1 );
+  }
+  block_sector_t inode_sector = 0;
+  struct dir *root_dir = dir_open_root ();
+  uint32_t group_idx = 0;
+  bool success = (root_dir != NULL
+          && group_free_map_allocate (group_idx, 1, &inode_sector)
+          && dir_create (inode_sector, 16));
+  struct dir_entry e;
+  char symbol[NAME_MAX + 1];
+  parse(root_dir, dir_absolute,symbol);
+  success = success && add_to_dir(root_dir, (const char*)symbol, inode_sector);
+  if (!success && inode_sector != 0)
+      free_map_release (inode_sector, 1);
+  struct dir* new_dir = dir_open(inode_open(inode_sector));
+  add_to_dir(new_dir, ".", inode_sector);
+  add_to_dir(new_dir, "..", root_dir->inode->sector);
+  dir_close (new_dir);
+  dir_close (root_dir);
+  return success;
 }
 struct dir* find_working_directory(const struct dir* cur_dir, const char* name){
-    struct inode* cur_inode = NULL;
-    if(!search_dir(cur_dir, name, &cur_inode)){
-        return NULL;
-    }
-    return dir_open(cur_inode);
+  struct inode* cur_inode = NULL;
+  if(!search_dir(cur_dir, name, &cur_inode)){
+      return NULL;
+  }
+  return dir_open(cur_inode);
 }
 
 void parse(struct dir *parent_dir, char* input,char symbol[NAME_MAX + 1]){
-    // *parent_dir = *root_dir;
-    struct dir *gp_dir;
-    while (get_next_part(symbol, &input) == 1){
-        gp_dir = parent_dir;
-        parent_dir = find_working_directory(gp_dir, symbol);
-        if(parent_dir == NULL){
-            break;
-        }
-//        dir_close(gp_dir);
-    }
-    parent_dir = gp_dir;
-//    const char* final_symbol = symbol;
-//    return final_symbol;
+  struct dir *gp_dir;
+  while (get_next_part(symbol, &input) == 1){
+      gp_dir = parent_dir;
+      parent_dir = find_working_directory(gp_dir, symbol);
+  }
+  parent_dir = gp_dir;
 }
-//struct dir* readdir(){
-//
-//}
+
 
 
 /* Extracts a file name part from *SRCP into PART, and updates *SRCP so that the
 next call will return the next file name part. Returns 1 if successful, 0 at
 end of string, -1 for a too-long file name part. */
 static int get_next_part(char part[NAME_MAX + 1], const char** srcp) {
-    const char* src = *srcp;
-    char* dst = part;
+  const char* src = *srcp;
+  char* dst = part;
 /* Skip leading slashes. If it's all slashes, we're done. */
-    while (*src == '/')
-        src++;
-    if (*src == '\0')
-        return 0;
+  while (*src == '/')
+      src++;
+  if (*src == '\0')
+      return 0;
 /* Copy up to NAME_MAX character from SRC to DST. Add null terminator. */
-    while (*src != '/' && *src != '\0') {
-        if (dst < part + NAME_MAX)
-            *dst++ = *src;
-        else
-            return -1;
-        src++;
-    }
-    *dst = '\0';
+  while (*src != '/' && *src != '\0') {
+      if (dst < part + NAME_MAX)
+          *dst++ = *src;
+      else
+          return -1;
+      src++;
+  }
+  *dst = '\0';
 /* Advance source pointer. */
-    *srcp = src;
-    return 1;
+  *srcp = src;
+  return 1;
 }
 
 bool
 search_dir(const struct dir *dir, const char *name,
-            struct inode **inode)
+  struct inode **inode)
 {
-    struct dir_entry e;
+  struct dir_entry e;
 
-    ASSERT (dir != NULL);
-    ASSERT (name != NULL);
+  ASSERT (dir != NULL);
+  ASSERT (name != NULL);
 
-    if (lookup (dir, name, &e, NULL))
-        *inode = inode_open (e.inode_sector);
-    else
-        *inode = NULL;
+  if (lookup (dir, name, &e, NULL))
+      *inode = inode_open (e.inode_sector);
+  else
+      *inode = NULL;
 
-    return *inode != NULL && e.is_dir;
+  return *inode != NULL && e.is_dir;
 }
 
 bool
 add_to_dir(struct dir *dir, const char *name, block_sector_t inode_sector)
 {
-    struct dir_entry e;
-    off_t ofs;
-    bool success = false;
+  struct dir_entry e;
+  off_t ofs;
+  bool success = false;
 
-    ASSERT (dir != NULL);
-    ASSERT (name != NULL);
+  ASSERT (dir != NULL);
+  ASSERT (name != NULL);
 
-    const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
-    strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
-    /* Check NAME for validity. */
-    if (*name == '\0' || strlen (name) > NAME_MAX)
-        return false;
-    /* Check that NAME is not in use. */
-    if (lookup (dir, name, NULL, NULL))
-        goto done;
+  const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
+  strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
+  /* Check NAME for validity. */
+  if (*name == '\0' || strlen (name) > NAME_MAX)
+      return false;
+  /* Check that NAME is not in use. */
+  if (lookup (dir, name, NULL, NULL))
+      goto done;
 
     /* Set OFS to offset of free slot.
        If there are no free slots, then it will be set to the
@@ -405,42 +381,42 @@ add_to_dir(struct dir *dir, const char *name, block_sector_t inode_sector)
        inode_read_at() will only return a short read at end of file.
        Otherwise, we'd need to verify that we didn't get a short
        read due to something intermittent such as low memory. */
-    for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
-         ofs += sizeof e)
-        if (!e.in_use)
-            break;
+  for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+    ofs += sizeof e)
+    if (!e.in_use)
+        break;
 
-    /* Write slot. */
-    e.in_use = true;
-    e.is_dir = true;
-    strlcpy (e.name, name_copy, sizeof e.name);
-    e.inode_sector = inode_sector;
-    success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+  /* Write slot. */
+  e.in_use = true;
+  e.is_dir = true;
+  strlcpy (e.name, name_copy, sizeof e.name);
+  e.inode_sector = inode_sector;
+  success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
 
-    done:
+  done:
     return success;
 }
 
 bool
 get_dir_entry(const struct dir *dir, const char *name,
-        struct dir_entry *ep, off_t *ofsp)
+  struct dir_entry *ep, off_t *ofsp)
 {
-    struct dir_entry e;
-    size_t ofs;
+  struct dir_entry e;
+  size_t ofs;
 
-    ASSERT (dir != NULL);
-    ASSERT (name != NULL);
-    const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
-    strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
-    for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
-         ofs += sizeof e)
-        if (e.in_use && !strcmp (name_copy, e.name))
-        {
-            if (ep != NULL)
-                *ep = e;
-            if (ofsp != NULL)
-                *ofsp = ofs;
-            return true;
-        }
-    return false;
+  ASSERT (dir != NULL);
+  ASSERT (name != NULL);
+  const char* name_copy = malloc(strlen(name) * sizeof(char) + 1);
+  strlcpy(name_copy, name, strlen(name) * sizeof(char) + 1);
+  for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+     ofs += sizeof e)
+    if (e.in_use && !strcmp (name_copy, e.name))
+    {
+        if (ep != NULL)
+            *ep = e;
+        if (ofsp != NULL)
+            *ofsp = ofs;
+        return true;
+    }
+  return false;
 }
