@@ -7,7 +7,8 @@
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
 #include "threads/synch.h"
-
+#include "filesys/directory.h"
+#include "threads/thread.h"
 /* Ignore caching system. Kept for comparison */
 //#define CACHE_BYPASS
 //#define NO_CLOCK_ALG
@@ -435,6 +436,7 @@ inode_init (void)
       cache_entries[i].dirty = 0;
       cache_entries[i].is_busy = 0;
     }
+  thread_current()->cwd = "";
 }
 
 uint32_t find_preferred_group(block_sector_t sector) {

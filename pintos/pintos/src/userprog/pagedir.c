@@ -297,8 +297,9 @@ is_valid_ptr (uint8_t *uaddr, size_t size)
 bool 
 is_valid_str (char *uaddr)
 {
-  if (uaddr == NULL || !is_user_vaddr(uaddr))
-    return false;
+  if (uaddr == NULL || !is_user_vaddr(uaddr)) {
+      return false;
+  }
   struct thread *current = thread_current ();
   bool is_valid = true;
   do 
@@ -318,4 +319,5 @@ is_valid_str (char *uaddr)
         }
       uaddr++;
     } while (true);
+    return is_valid;
 }
