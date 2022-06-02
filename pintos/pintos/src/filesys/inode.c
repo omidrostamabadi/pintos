@@ -49,43 +49,14 @@ struct cache_entry
     char in_mem_data[BLOCK_SECTOR_SIZE]; /* Actual data of the sector */
   };
 
-/* Sectors that should not be accessed by others */
-struct busy_sector
-  {
-    struct inode *its_file; /* Which file does this belong? */
-    block_sector_t sector; /* Sector number */
-    struct lock busy_lock; /* Used for synchronization. 
-      Other threads wait on this lock when they find the sector busy */
-    struct list_elem busy_elem; /* Put elements in busy_sectors list */
-  };
-
 int clock_hand = 0; /* Used in clock algorithm */
 
 struct cache_entry cache_entries[CACHE_ELEMENTS]; /* Buffer cache */
 
 struct lock cache_lock; /* Acquire this lock prior to any modification to cache */
 
-struct list busy_sectors; /* List of sectors that should not be accessed by
-  other threads in the system */ 
-
 /* Helper functions for buffer cache system */
 
-/* Checks cache to see if the sector is cached.
-    Returns the index for the cache element containing the sector if found.
-    If cannot find the sector in cache, returns -1.
-    */
-static int
-check_cache (block_sector_t sector)
-{
-  for (int i = 0; i < CACHE_ELEMENTS; i++)
-    {
-      if (cache_entries[i].sector == sector && cache_entries[i].is_busy == 1)
-        {
-          return i;
-        }
-    }
-  return -1; /* Sector not found in cache */
-}
 
 /* Put the sector which is being operated on (write, read, migrate to/from disk)
     into the busy_sectors list. If others want to operate on this sector, they
@@ -160,62 +131,6 @@ add_to_cache(block_sector_t sector)
   return cache_index;
 }
 
-static int
-simple_clock ()
-{
-  #ifdef NO_CLOCK_ALG
-  int to_be_evicted = clock_hand;
-  clock_hand++;
-  if (clock_hand >= CACHE_ELEMENTS)
-    clock_hand = 0;
-  return to_be_evicted;
-  #else
-  struct cache_entry *tmp;
-  while (1)
-    {
-      tmp = &cache_entries[clock_hand];
-      if (tmp->used != 0)
-        {
-          tmp->used--;
-          clock_hand++;
-          if (clock_hand >= CACHE_ELEMENTS)
-            clock_hand = 0;
-        }
-      else
-        {
-          int to_be_evicted = clock_hand;
-          clock_hand++;
-          if (clock_hand >= CACHE_ELEMENTS)
-            clock_hand = 0;
-          return to_be_evicted;
-        }
-    }
-    #endif
-}
-
-static int
-simple_add_cache (block_sector_t sector)
-{
-  int cache_index = check_cache (sector);
-  if (cache_index == -1)
-    {
-      cache_index = simple_clock ();
-      if (cache_entries[cache_index].dirty == 1)
-        {
-          block_write (fs_device, cache_entries[cache_index].sector, 
-            cache_entries[cache_index].in_mem_data);
-        }
-      block_read (fs_device, sector, cache_entries[cache_index].in_mem_data);
-      cache_entries[cache_index].used = CLOCK_CHANCES;
-      cache_entries[cache_index].dirty = 0;
-      cache_entries[cache_index].is_busy = 1;
-      cache_entries[cache_index].its_inode = NULL;
-      cache_entries[cache_index].sector = sector;
-    }
-  cache_entries[cache_index].used = CLOCK_CHANCES;
-  return cache_index;
-}
-
 /* Choose a cache block to be evicted in order to make room for a new one.
     Works based on clock algorithm */
 static int
@@ -273,23 +188,6 @@ fetch_new_block (int cache_index, block_sector_t sector_index)
   cache_entries[cache_index].is_busy = 1;
   cache_entries[cache_index].its_inode = NULL;
   cache_entries[cache_index].sector = sector_index;
-}
-
-/* Returns the address of struct busy_sector in busy_sectors list.
-    If sector is not busy, returns NULL. */
-static struct cache_entry *
-check_busy (int cache_index)
-{
-  struct list_elem *e;
-  struct cache_entry tmp = cache_entries[cache_index];
-  for (e = list_begin (&busy_sectors); e != list_end (&busy_sectors);
-       e = list_next (e))
-    {
-      struct cache_entry *bs = list_entry (e, struct cache_entry, busy_elem);
-      if (bs->sector == tmp.sector && bs->its_inode == tmp.its_inode)
-        return bs;
-    }
-  return NULL;
 }
 
 static void
@@ -720,7 +618,6 @@ allocate_sectors(struct inode* data_inode, block_sector_t needed_sectors,block_s
     if(cur_sectors < 123){
         for(size_t i=cur_sectors; i < 123; i++){
             if (group_free_map_allocate(find_preferred_group(data_inode->sector),1, &data_inode->data.direct_ptr[i])) {
-//                cache_write(sector,disk_inode,0, BLOCK_SECTOR_SIZE);
                     static char zeros[BLOCK_SECTOR_SIZE];
                     cache_write(data_inode->data.direct_ptr[i],zeros,0, BLOCK_SECTOR_SIZE);
                     remain_sectors--;

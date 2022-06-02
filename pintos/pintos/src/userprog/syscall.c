@@ -37,7 +37,6 @@ void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  sema_init(&file_sema, 1);
 }
 
 static void
@@ -213,9 +212,7 @@ filesize_handler (struct intr_frame *f)
   struct file *file = get_file_from_fd (args[1]);
   if (file != NULL)
     {
-      sema_down (&file_sema); // Acquire global filesystem lock
       f->eax = file_length (file);
-      sema_up (&file_sema); // Release global filesystem lock
     }
   else
     {
@@ -240,9 +237,7 @@ close_handler (struct intr_frame *f)
   struct file *file = get_file_from_fd (args[1]);
   if (file != NULL)
     {
-      sema_down (&file_sema); // Acquire global filesystem lock
       file_close (file);
-      sema_up (&file_sema); // Release global filesystem lock
 
       /* Remove file from open_files list of this thread */
       struct thread *current = thread_current ();
@@ -282,9 +277,7 @@ tell_handler (struct intr_frame *f)
   struct file *file = get_file_from_fd (args[1]);
   if (file != NULL)
     {
-      sema_down (&file_sema); // Acquire global filesystem lock
       f->eax = file_tell (file);
-      sema_up (&file_sema); // Release global filesystem lock
     }
   else
     {
@@ -309,9 +302,7 @@ seek_handler (struct intr_frame *f)
   struct file *file = get_file_from_fd (args[1]);
   if (file != NULL)
     {
-      sema_down (&file_sema); // Acquire global filesystem lock
       uint32_t f_size = file_length (file);
-      sema_up (&file_sema); // Release global filesystem lock
       int file_pos = (int) args[2];
       if (file_pos < 0)
         {
@@ -320,9 +311,7 @@ seek_handler (struct intr_frame *f)
         }
       else
         {
-          sema_down (&file_sema); // Acquire global filesystem lock
           file_seek (file, args[2]);
-          sema_up (&file_sema); // Release global filesystem lock
         }
     }
   else
@@ -351,9 +340,7 @@ exec_handler(struct intr_frame *f){
       NOT_REACHED ();
     }
   char* command_line = args[1];
-  sema_down (&file_sema);
   tid_t tid = process_execute (command_line);
-  sema_up (&file_sema);
 
   if (tid == TID_ERROR)
     {
@@ -491,9 +478,7 @@ create_handler (struct intr_frame *f)
     const char* file_name = (const char*) args[1];
     size_t size = (size_t) args[2];
     bool status = false;
-    sema_down (&file_sema);
     status = filesys_create (file_name, size);
-    sema_up (&file_sema);
     f->eax = status;
 }
 
@@ -508,9 +493,7 @@ remove_handler (struct intr_frame *f)
     }
     const char* file_name = (const char*) args[1];
     bool status = false;
-    sema_down (&file_sema);
     status = filesys_remove (file_name);
-    sema_up (&file_sema);
     f->eax = status;
 }
 
@@ -537,7 +520,6 @@ write_handler(struct intr_frame *f)
     int write_size;
     void* buffer_copy = buffer;
     size_t copy_buffer_size = buffer_size;
-    sema_down (&file_sema);
     switch (file_des)
       {
         case STDIN_FILENO:
@@ -564,7 +546,6 @@ write_handler(struct intr_frame *f)
 
             break;
       }
-    sema_up (&file_sema);
     f->eax = write_size;
 }
 
@@ -593,7 +574,6 @@ read_handler(struct intr_frame *f)
     int read_size;
     void* buffer_copy = buffer;
     size_t copy_buffer_size = buffer_size;
-    sema_down (&file_sema);
     uint8_t c;
     unsigned counter = buffer_size;
     uint8_t *buf = buffer;
@@ -627,7 +607,6 @@ read_handler(struct intr_frame *f)
             break;
 
       }
-    sema_up (&file_sema);
     f->eax = read_size;
 }
 
@@ -663,10 +642,8 @@ open_handler (struct intr_frame *f)
   }else {
       is_dir = get_dir_entry(dir, name, &e, NULL);
   }
-  sema_down (&file_sema);
   if (is_dir && e.is_dir){
       curr_dir = dir_open(inode_open(e.inode_sector));
-      sema_up (&file_sema);
       if (curr_dir == NULL)
       {
           f->eax = -1;
@@ -682,7 +659,6 @@ open_handler (struct intr_frame *f)
       }
   }else{
       curr_file = filesys_open (args[1]);
-      sema_up (&file_sema);
       if (curr_file == NULL)
       {
           f->eax = -1;
