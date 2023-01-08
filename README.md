@@ -12,5 +12,5 @@ The most meaningful work one would do with the current pintos source is to run a
 To understand different flags of this command, refer to the reference section of [0].
 
 # References
-[0] https://web.stanford.edu/class/cs140/projects/pintos/pintos.pdf
+[0] https://web.stanford.edu/class/cs140/projects/pintos/pintos.pdf <br>
 [1] https://inst.eecs.berkeley.edu/~cs162/sp20/static/projects/proj1_pregame.pdf
